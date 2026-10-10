@@ -17,6 +17,8 @@ class SpeakerRole(str, Enum):
     """Estimated role of an utterance speaker."""
     DOCTOR = "Doctor"
     PATIENT = "Patient"
+    CAREGIVER = "Caregiver"
+    NURSE = "Nurse"
     UNKNOWN = "Unknown"
 
 
@@ -44,6 +46,7 @@ class TranscriptSegment:
     start_time: Optional[float] = None
     end_time: Optional[float] = None
     speaker_role: SpeakerRole = SpeakerRole.UNKNOWN
+    speaker_id: Optional[str] = None  # e.g. "Speaker 1", "Speaker 2", "Speaker 3"
     role_confidence: float = 0.0  # 0.0 to 1.0 scale
     speaker_reason: str = ""
 
@@ -54,6 +57,7 @@ class TranscriptSegment:
             "start_time": self.start_time,
             "end_time": self.end_time,
             "speaker_role": self.speaker_role.value if isinstance(self.speaker_role, SpeakerRole) else str(self.speaker_role),
+            "speaker_id": self.speaker_id or (self.speaker_role.value if self.speaker_role != SpeakerRole.UNKNOWN else "Speaker"),
             "role_confidence": self.role_confidence,
             "speaker_reason": self.speaker_reason,
         }
@@ -72,6 +76,7 @@ class TranscriptSegment:
             start_time=data.get("start_time"),
             end_time=data.get("end_time"),
             speaker_role=speaker_role,
+            speaker_id=data.get("speaker_id"),
             role_confidence=float(data.get("role_confidence", 0.0)),
             speaker_reason=str(data.get("speaker_reason", "")),
         )

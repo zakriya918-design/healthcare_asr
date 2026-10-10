@@ -130,6 +130,24 @@ h1, h2, h3, h4, .clinic-brand-title {
     margin-bottom: 10px;
 }
 
+.bubble-caregiver {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.08) 0%, rgba(147, 51, 234, 0.12) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-left: 4px solid #9333ea;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+}
+
+.bubble-nurse {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(217, 119, 6, 0.12) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-left: 4px solid #d97706;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+}
+
 .bubble-unknown {
     background: rgba(148, 163, 184, 0.08);
     border: 1px solid rgba(148, 163, 184, 0.25);
@@ -253,6 +271,25 @@ with st.sidebar:
         value=True,
         help="Applies digital bandpass filtering and spectral subtraction noise reduction to improve ASR accuracy on noisy audio.",
     )
+    speaker_mode_choice = st.selectbox(
+        "👥 Room Participants (Diarization)",
+        [
+            "Auto-Detect (2-4 Persons)",
+            "2 Persons (Doctor & Patient)",
+            "3 Persons (Doctor, Patient, Caregiver)",
+            "4 Persons (Doctor, Patient, Family, Nurse)",
+        ],
+        index=0,
+        help="Configures multi-speaker acoustic voice clustering and dialogue segregation.",
+    )
+    if "2 Persons" in speaker_mode_choice:
+        num_speakers_param = 2
+    elif "3 Persons" in speaker_mode_choice:
+        num_speakers_param = 3
+    elif "4 Persons" in speaker_mode_choice:
+        num_speakers_param = 4
+    else:
+        num_speakers_param = "auto"
 
     st.markdown("---")
     st.subheader("🏥 Clinic Header & Letterhead")
@@ -316,6 +353,7 @@ def execute_clinical_pipeline(
     audio_path: Optional[Path],
     raw_text_input: Optional[str] = None,
     enhance_audio: bool = False,
+    num_speakers: Union[int, str] = "auto",
 ):
     with st.spinner("Transcribing audio & executing medical NLP engines..."):
         progress_bar = st.progress(10)
@@ -353,9 +391,13 @@ def execute_clinical_pipeline(
 
         progress_bar.progress(55)
 
-        # 2. Speaker-role Estimation (Acoustic voice clustering & clinical heuristics)
+        # 2. Speaker-role Estimation (Multi-speaker voice clustering & clinical heuristics)
         from src.audio.diarization import diarize_consultation_audio
-        annotated_segments = diarize_consultation_audio(raw_segments, audio_path=audio_path)
+        annotated_segments = diarize_consultation_audio(
+            raw_segments,
+            audio_path=audio_path,
+            num_speakers=num_speakers
+        )
 
         # 3. Clinical Entity & Demographics Extraction
         extracted_info = process_clinical_information(raw_transcript)
@@ -394,7 +436,11 @@ if process_btn:
         if not synth_path.exists():
             from src.audio.diagnostics import SyntheticAudioGenerator
             SyntheticAudioGenerator.generate_synthetic_consultation_wav(synth_path)
-        execute_clinical_pipeline(audio_path=synth_path, enhance_audio=enhance_audio_toggle)
+        execute_clinical_pipeline(
+            audio_path=synth_path,
+            enhance_audio=enhance_audio_toggle,
+            num_speakers=num_speakers_param
+        )
         st.success("Synthetic consultation transcribed and processed successfully!")
         st.rerun()
 
@@ -407,7 +453,11 @@ if process_btn:
             temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             temp_audio.write(uploaded_audio.read())
             temp_audio.close()
-            execute_clinical_pipeline(audio_path=Path(temp_audio.name), enhance_audio=enhance_audio_toggle)
+            execute_clinical_pipeline(
+                audio_path=Path(temp_audio.name),
+                enhance_audio=enhance_audio_toggle,
+                num_speakers=num_speakers_param
+            )
             st.success(f"Uploaded audio '{uploaded_audio.name}' processed successfully!")
             st.rerun()
 
@@ -415,7 +465,11 @@ if process_btn:
         if not direct_transcript_text.strip():
             st.error("Please enter consultation transcript text.")
         else:
-            execute_clinical_pipeline(audio_path=None, raw_text_input=direct_transcript_text)
+            execute_clinical_pipeline(
+                audio_path=None,
+                raw_text_input=direct_transcript_text,
+                num_speakers=num_speakers_param
+            )
             st.success("Consultation transcript parsed and processed successfully!")
             st.rerun()
 
@@ -542,98 +596,119 @@ with tab1:
 
     with col_t2:
         st.subheader("👥 Conversational Dialogue Timeline")
-        st.caption("Speaker role estimated via acoustic voice clustering & clinical contextual heuristics.")
+        st.caption("Multi-speaker voice clustering (2-4 persons) with clinical role segregation.")
 
         if rec.segments:
             doc_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.DOCTOR.value]
             pt_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.PATIENT.value]
+            cg_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.CAREGIVER.value]
+            nurse_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.NURSE.value]
             unk_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.UNKNOWN.value]
 
-            sb1, sb2, sb3 = st.columns(3)
-            with sb1:
-                st.markdown(f"**🩺 Doctor Dialogues:** `{len(doc_segs)}`")
-            with sb2:
-                st.markdown(f"**👤 Patient Dialogues:** `{len(pt_segs)}`")
-            with sb3:
-                st.markdown(f"**❓ Unassigned:** `{len(unk_segs)}`")
+            # Metric counters for all detected participants
+            metrics_cols = st.columns(4 if (cg_segs or nurse_segs) else 3)
+            with metrics_cols[0]:
+                st.markdown(f"**🩺 Doctor:** `{len(doc_segs)}`")
+            with metrics_cols[1]:
+                st.markdown(f"**👤 Patient:** `{len(pt_segs)}`")
+            if len(cg_segs) > 0 or len(nurse_segs) > 0:
+                with metrics_cols[2]:
+                    if cg_segs:
+                        st.markdown(f"**👥 Family/Caregiver:** `{len(cg_segs)}`")
+                    else:
+                        st.markdown(f"**🩺 Nurse/Staff:** `{len(nurse_segs)}`")
+                with metrics_cols[3]:
+                    st.markdown(f"**❓ Other:** `{len(unk_segs)}`")
+            else:
+                with metrics_cols[2]:
+                    st.markdown(f"**❓ Unassigned:** `{len(unk_segs)}`")
+
+            # Dynamic filter options
+            filter_options = [
+                "💬 All Dialogues (Timeline)",
+                f"🩺 Doctor Said ({len(doc_segs)})",
+                f"👤 Patient Said ({len(pt_segs)})"
+            ]
+            if len(cg_segs) > 0:
+                filter_options.append(f"👥 Caregiver Said ({len(cg_segs)})")
+            if len(nurse_segs) > 0:
+                filter_options.append(f"🩺 Nurse Said ({len(nurse_segs)})")
 
             dialogue_filter = st.radio(
                 "Filter Dialogues:",
-                ["💬 All Dialogues (Timeline)", f"🩺 Doctor Said ({len(doc_segs)})", f"👤 Patient Said ({len(pt_segs)})"],
+                filter_options,
                 horizontal=True,
                 label_visibility="collapsed",
                 key="dialogue_filter_selector",
             )
 
+            def _render_bubble(seg):
+                role_val = seg.speaker_role.value if isinstance(seg.speaker_role, SpeakerRole) else str(seg.speaker_role)
+                time_tag = f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s]" if seg.start_time is not None else ""
+                speaker_id_tag = f" ({seg.speaker_id})" if getattr(seg, "speaker_id", None) and seg.speaker_id not in (role_val, "Speaker") else ""
+
+                if role_val == SpeakerRole.DOCTOR.value:
+                    bubble_class = "bubble-doctor"
+                    icon = "🩺"
+                    title = f"DOCTOR{speaker_id_tag} {time_tag}".strip()
+                elif role_val == SpeakerRole.PATIENT.value:
+                    bubble_class = "bubble-patient"
+                    icon = "👤"
+                    title = f"PATIENT{speaker_id_tag} {time_tag}".strip()
+                elif role_val == SpeakerRole.CAREGIVER.value:
+                    bubble_class = "bubble-caregiver"
+                    icon = "👥"
+                    title = f"CAREGIVER / FAMILY{speaker_id_tag} {time_tag}".strip()
+                elif role_val == SpeakerRole.NURSE.value:
+                    bubble_class = "bubble-nurse"
+                    icon = "🩺"
+                    title = f"NURSE / STAFF{speaker_id_tag} {time_tag}".strip()
+                else:
+                    bubble_class = "bubble-unknown"
+                    icon = "❓"
+                    title = f"UNKNOWN{speaker_id_tag} {time_tag}".strip()
+
+                st.markdown(
+                    f"""
+                    <div class="{bubble_class}">
+                        <div style="font-size: 0.8rem; font-weight: 700; opacity: 0.85; margin-bottom: 4px;">
+                            {icon} {title}
+                        </div>
+                        <div style="font-size: 0.95rem;">
+                            {seg.text}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
             if dialogue_filter == "💬 All Dialogues (Timeline)":
                 for seg in rec.segments:
-                    role_val = seg.speaker_role.value if isinstance(seg.speaker_role, SpeakerRole) else str(seg.speaker_role)
-                    time_tag = f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s]"
-
-                    if role_val == SpeakerRole.DOCTOR.value:
-                        bubble_class = "bubble-doctor"
-                        icon = "🩺"
-                        title = f"DOCTOR {time_tag}"
-                    elif role_val == SpeakerRole.PATIENT.value:
-                        bubble_class = "bubble-patient"
-                        icon = "👤"
-                        title = f"PATIENT {time_tag}"
-                    else:
-                        bubble_class = "bubble-unknown"
-                        icon = "❓"
-                        title = f"UNKNOWN {time_tag}"
-
-                    st.markdown(
-                        f"""
-                        <div class="{bubble_class}">
-                            <div style="font-size: 0.8rem; font-weight: 700; opacity: 0.8; margin-bottom: 4px;">
-                                {icon} {title}
-                            </div>
-                            <div style="font-size: 0.95rem;">
-                                {seg.text}
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                    _render_bubble(seg)
             elif "Doctor Said" in dialogue_filter:
                 if doc_segs:
                     for seg in doc_segs:
-                        time_tag = f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s]"
-                        st.markdown(
-                            f"""
-                            <div class="bubble-doctor" style="margin-bottom: 8px;">
-                                <div style="font-size: 0.8rem; font-weight: 700; opacity: 0.8; margin-bottom: 4px;">
-                                    🩺 DOCTOR {time_tag}
-                                </div>
-                                <div style="font-size: 0.95rem;">
-                                    {seg.text}
-                                </div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                        _render_bubble(seg)
                 else:
                     st.info("No doctor utterances detected.")
-            else:
+            elif "Patient Said" in dialogue_filter:
                 if pt_segs:
                     for seg in pt_segs:
-                        time_tag = f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s]"
-                        st.markdown(
-                            f"""
-                            <div class="bubble-patient" style="margin-bottom: 8px;">
-                                <div style="font-size: 0.8rem; font-weight: 700; opacity: 0.8; margin-bottom: 4px;">
-                                    👤 PATIENT {time_tag}
-                                </div>
-                                <div style="font-size: 0.95rem;">
-                                    {seg.text}
-                                </div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                        _render_bubble(seg)
                 else:
                     st.info("No patient utterances detected.")
+            elif "Caregiver Said" in dialogue_filter:
+                if cg_segs:
+                    for seg in cg_segs:
+                        _render_bubble(seg)
+                else:
+                    st.info("No caregiver utterances detected.")
+            elif "Nurse Said" in dialogue_filter:
+                if nurse_segs:
+                    for seg in nurse_segs:
+                        _render_bubble(seg)
+                else:
+                    st.info("No nurse utterances detected.")
         else:
             st.write(rec.raw_transcript)
 

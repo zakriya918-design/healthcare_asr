@@ -51,8 +51,26 @@ PATIENT_PATTERNS = [
     r"\b(?:i'm\s+good|sure\s*,\s*that'd\s+be\s+great|that\s+sounds\s+(?:good|great))\b",
 ]
 
+CAREGIVER_PATTERNS = [
+    r"\b(?:he\s+hasn't\s+been|she\s+hasn't\s+been|he's\s+been|she's\s+been|he\s+was|she\s+was)\b",
+    r"\b(?:my\s+husband|my\s+wife|my\s+mother|my\s+father|my\s+son|my\s+daughter|my\s+child|my\s+mom|my\s+dad)\b",
+    r"\b(?:i\s+brought\s+(?:him|her)\s+in|we\s+noticed\s+that\s+(?:he|she)|i\s+noticed\s+(?:he|she))\b",
+    r"\b(?:he\s+complained|she\s+complained|he\s+told\s+me|she\s+told\s+me|at\s+home\s+(?:he|she))\b",
+    r"\b(?:we\s+are\s+worried|he\s+can't|she\s+can't|his\s+pain|her\s+pain|his\s+memory|her\s+memory)\b",
+    r"\b(?:i'm\s+his\s+wife|i'm\s+her\s+husband|i'm\s+his\s+mother|i'm\s+her\s+daughter)\b",
+]
+
+NURSE_PATTERNS = [
+    r"\b(?:let\s+me\s+take\s+your|let's\s+check\s+your|let\s+me\s+get\s+your)\s+(?:vitals|blood\s+pressure|temperature|pulse|weight)\b",
+    r"\b(?:step\s+on\s+the\s+scale|roll\s+up\s+your\s+sleeve|put\s+this\s+under\s+your\s+tongue|pulse\s+oximeter)\b",
+    r"\b(?:the\s+doctor\s+will\s+be\s+(?:right|in\s+shortly)|doctor\s+will\s+see\s+you|dr\.\s+\w+\s+will\s+be\s+in)\b",
+    r"\b(?:confirm\s+your|verify\s+your\s+name\s+and\s+date\s+of\s+birth)\b",
+]
+
 PREFIX_DOCTOR_RE = re.compile(r"^(?:doctor|dr\.?|clinician|physician|provider):?\s*", re.IGNORECASE)
 PREFIX_PATIENT_RE = re.compile(r"^(?:patient|pt):?\s*", re.IGNORECASE)
+PREFIX_CAREGIVER_RE = re.compile(r"^(?:caregiver|family|spouse|parent|mother|father|wife|husband|daughter|son):?\s*", re.IGNORECASE)
+PREFIX_NURSE_RE = re.compile(r"^(?:nurse|rn|ma|medical\s+assistant|assistant|staff|triage):?\s*", re.IGNORECASE)
 
 
 def estimate_speaker_role(
@@ -60,7 +78,7 @@ def estimate_speaker_role(
     previous_role: Optional[SpeakerRole] = None
 ) -> Tuple[SpeakerRole, float, str]:
     """
-    Estimates speaker role for a given text snippet.
+    Estimates speaker role for a given text snippet (Doctor, Patient, Caregiver, Nurse, or Unknown).
     Returns:
         (SpeakerRole, confidence [0.0 - 1.0], rationale_string)
     """
@@ -68,44 +86,81 @@ def estimate_speaker_role(
     if not cleaned:
         return SpeakerRole.UNKNOWN, 0.0, "Empty utterance"
 
+    # 1. Explicit prefixes
     if PREFIX_DOCTOR_RE.match(cleaned):
         return SpeakerRole.DOCTOR, 0.95, "Explicit doctor label prefix"
     if PREFIX_PATIENT_RE.match(cleaned):
         return SpeakerRole.PATIENT, 0.95, "Explicit patient label prefix"
+    if PREFIX_CAREGIVER_RE.match(cleaned):
+        return SpeakerRole.CAREGIVER, 0.95, "Explicit caregiver label prefix"
+    if PREFIX_NURSE_RE.match(cleaned):
+        return SpeakerRole.NURSE, 0.95, "Explicit nurse/staff label prefix"
 
-    doc_matches = 0
-    for pat in CLINICIAN_PATTERNS:
-        if re.search(pat, cleaned, re.IGNORECASE):
-            doc_matches += 1
+    # 2. Count phrasing cues across all 4 candidate roles
+    doc_matches = sum(1 for pat in CLINICIAN_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
+    pt_matches = sum(1 for pat in PATIENT_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
+    cg_matches = sum(1 for pat in CAREGIVER_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
+    nurse_matches = sum(1 for pat in NURSE_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
 
-    pt_matches = 0
-    for pat in PATIENT_PATTERNS:
-        if re.search(pat, cleaned, re.IGNORECASE):
-            pt_matches += 1
+    # Addressing clinician by name or title indicates patient/caregiver voice
+    if re.search(r"\b(?:dr\.|doctor)\s+(?!(?:comes|will|sees|says|said|prescribed|ordered|recommended|is|was))[a-z]+\b", cleaned, re.IGNORECASE) and doc_matches == 0:
+        if cg_matches > 0:
+            cg_matches += 1
+        else:
+            pt_matches += 2
 
-    # Addressing clinician by name or title indicates patient voice
-    if re.search(r"\b(?:dr\.|doctor)\s+[a-z]+\b", cleaned, re.IGNORECASE) and doc_matches == 0:
-        pt_matches += 2
+    # Referring to doctor in third person (e.g., "before the doctor comes in", "doctor will be right in")
+    if re.search(r"\b(?:doctor\s+(?:comes|will|sees|is\s+in)|dr\.\s+\w+\s+(?:comes|will))\b", cleaned, re.IGNORECASE):
+        doc_matches = 0
+        if nurse_matches > 0:
+            nurse_matches += 2
+        elif cg_matches > 0:
+            cg_matches += 2
 
-    if doc_matches > 0 and pt_matches == 0:
+    # Nurse triage/intake cues
+    if nurse_matches > 0 and max(doc_matches, pt_matches, cg_matches) == 0:
+        conf = min(0.65 + (nurse_matches * 0.15), 0.90)
+        return SpeakerRole.NURSE, conf, f"Nurse/staff vitals/intake cues matched ({nurse_matches})"
+
+    # Caregiver / family proxy cues
+    if cg_matches > 0 and max(doc_matches, pt_matches) == 0:
+        conf = min(0.65 + (cg_matches * 0.15), 0.90)
+        return SpeakerRole.CAREGIVER, conf, f"Caregiver/family proxy cues matched ({cg_matches})"
+
+    # Clinician phrasing cues
+    if doc_matches > 0 and max(pt_matches, cg_matches, nurse_matches) == 0:
         conf = min(0.6 + (doc_matches * 0.15), 0.90)
         return SpeakerRole.DOCTOR, conf, f"Clinician phrasing cues matched ({doc_matches})"
-    elif pt_matches > 0 and doc_matches == 0:
+
+    # Patient first-person cues
+    if pt_matches > 0 and max(doc_matches, cg_matches, nurse_matches) == 0:
         conf = min(0.6 + (pt_matches * 0.15), 0.90)
         return SpeakerRole.PATIENT, conf, f"Patient symptom/history cues matched ({pt_matches})"
-    elif doc_matches > 0 and pt_matches > 0:
-        if doc_matches > pt_matches:
-            return SpeakerRole.DOCTOR, 0.55, "Mixed phrasing cues, clinician predominant"
-        elif pt_matches > doc_matches:
-            return SpeakerRole.PATIENT, 0.55, "Mixed phrasing cues, patient predominant"
-        else:
-            return SpeakerRole.UNKNOWN, 0.30, "Conflicting clinician and patient cues"
+
+    # Mixed cues resolution
+    scores = {
+        SpeakerRole.DOCTOR: doc_matches,
+        SpeakerRole.PATIENT: pt_matches,
+        SpeakerRole.CAREGIVER: cg_matches,
+        SpeakerRole.NURSE: nurse_matches,
+    }
+    sorted_roles = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    best_role, best_score = sorted_roles[0]
+    second_role, second_score = sorted_roles[1]
+
+    if best_score > 0 and best_score > second_score:
+        conf = min(0.60 + ((best_score - second_score) * 0.10), 0.90)
+        return best_role, conf, f"Predominant {best_role.value.lower()} cues ({best_score} vs {second_score})"
+    elif best_score > 0 and best_score == second_score:
+        return SpeakerRole.UNKNOWN, 0.30, f"Conflicting cues between {best_role.value} and {second_role.value}"
 
     if re.match(r"^(?:yes|yeah|no|okay|ok|sure|i\s+see|thank\s+you|good\s+morning|hello|bye)[.?!]?$", cleaned, re.IGNORECASE):
         if previous_role == SpeakerRole.DOCTOR:
             return SpeakerRole.PATIENT, 0.40, "Conversational response to clinician"
         elif previous_role == SpeakerRole.PATIENT:
             return SpeakerRole.DOCTOR, 0.40, "Conversational response to patient"
+        elif previous_role is not None and previous_role != SpeakerRole.UNKNOWN:
+            return previous_role, 0.40, f"Conversational acknowledgment of {previous_role.value.lower()}"
         return SpeakerRole.UNKNOWN, 0.10, "Brief generic conversational token"
 
     return SpeakerRole.UNKNOWN, 0.0, "No definitive role patterns detected"
