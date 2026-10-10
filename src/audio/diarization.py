@@ -17,6 +17,7 @@ import numpy as np
 import soundfile as sf
 
 import itertools
+import re
 from src.models.patient_record import SpeakerRole, TranscriptSegment
 from src.processing.speaker_processor import (
     estimate_speaker_role,
@@ -108,34 +109,142 @@ def extract_acoustic_features(signal: np.ndarray, sr: int = 16000) -> np.ndarray
 
 
 def compute_cluster_silhouette(X: np.ndarray, labels: np.ndarray) -> float:
-    """Computes mean silhouette score to evaluate clustering quality."""
+    """Computes mean silhouette score to evaluate clustering quality with vectorized speed."""
     unique_labels = np.unique(labels)
     n_samples = len(X)
     if len(unique_labels) < 2 or len(unique_labels) >= n_samples:
         return -1.0
 
+    # Vectorized pairwise Euclidean distance matrix
+    diff = X[:, np.newaxis, :] - X[np.newaxis, :, :]
+    dists = np.linalg.norm(diff, axis=-1)
+
     sil_values = []
     for i in range(n_samples):
-        same_mask = labels == labels[i]
-        same_cluster = X[same_mask]
-        if len(same_cluster) > 1:
-            a = np.mean([np.linalg.norm(X[i] - p) for p in same_cluster if not np.array_equal(X[i], p)])
+        current_label = labels[i]
+        same_mask = (labels == current_label)
+        same_mask[i] = False
+        if np.any(same_mask):
+            a = float(np.mean(dists[i, same_mask]))
         else:
             a = 0.0
 
         b = np.inf
         for other_label in unique_labels:
-            if other_label == labels[i]:
+            if other_label == current_label:
                 continue
-            diff_cluster = X[labels == other_label]
-            if len(diff_cluster) > 0:
-                dist = np.mean([np.linalg.norm(X[i] - p) for p in diff_cluster])
-                b = min(b, dist)
+            other_mask = (labels == other_label)
+            if np.any(other_mask):
+                b = min(b, float(np.mean(dists[i, other_mask])))
 
-        s = (b - a) / max(a, b) if max(a, b) > 0 else 0.0
+        denom = max(a, b)
+        s = (b - a) / denom if denom > 0 else 0.0
         sil_values.append(s)
 
     return float(np.mean(sil_values))
+
+
+def score_cluster_conversational_profile(texts: List[str]) -> Dict[SpeakerRole, float]:
+    """Computes generalized, specialty-agnostic clinical role likelihoods from universal conversational dynamics.
+    
+    Uses universal dialogue markers across all medical encounters:
+    - Doctor: 2nd-person address ('you', 'your'), clinical inquiries (questions), prescriptive directives, greeting patient with honorifics.
+    - Patient: 1st-person singular ('I', 'my', 'me'), somatic complaint descriptors (pain, discomfort, onset), addressing doctor with honorifics.
+    - Caregiver: 3rd-person relational pronouns ('he', 'she', 'my mother', 'my husband', 'my child', 'his', 'her').
+    - Nurse: Triage & vitals intake ('vitals', 'blood pressure', 'temperature', 'scale', 'doctor will be in').
+    """
+    total_words = 0
+    cnt_1st = 0
+    cnt_2nd = 0
+    cnt_3rd = 0
+    cnt_questions = 0
+    cnt_directives = 0
+    cnt_symptoms = 0
+    cnt_address_doc = 0
+    cnt_address_pt = 0
+    cnt_triage = 0
+
+    re_1st = re.compile(r"\b(?:i|i'm|i've|i'd|i'll|me|my|myself)\b", re.IGNORECASE)
+    re_2nd = re.compile(r"\b(?:you|you're|you've|you'd|you'll|your|yours|yourself)\b", re.IGNORECASE)
+    re_3rd = re.compile(r"\b(?:he|he's|him|his|she|she's|her|hers|they|them|their|my\s+(?:mother|father|husband|wife|son|daughter|child|mom|dad|parent))\b", re.IGNORECASE)
+    
+    re_directive = re.compile(
+        r"\b(?:order|prescribe|recommend|suggest|examine|listen\s+to|check\s+your|take\s+this|avoid|schedule|follow\s*up|come\s+back|see\s+me|return\s+to|let's\s+look|let\s+me\s+listen)\b",
+        re.IGNORECASE
+    )
+    re_symptom = re.compile(
+        r"\b(?:pain|hurt|hurts|aching|sore|discomfort|bothering|started|noticed|feeling|numb|swelling|tired|fatigue|cough|fever|trouble|hard\s+to|can't\s+sleep|struggling)\b",
+        re.IGNORECASE
+    )
+    re_address_doc = re.compile(
+        r"(?:,\s*(?:dr\.?|doctor)\b|\b(?:dr\.?|doctor)\s*[,.?!]|\bthank\s+you\s*,?\s*(?:dr\.?|doctor)\b|\bhello\s*,?\s*(?:dr\.?|doctor)\b|\bgood\s+morning\s*,?\s*(?:dr\.?|doctor)\b)",
+        re.IGNORECASE
+    )
+    re_address_pt = re.compile(
+        r"\b(?:mr\.|mrs\.|ms\.|miss)\s+[A-Za-z]+\b",
+        re.IGNORECASE
+    )
+    re_triage = re.compile(
+        r"\b(?:vitals|blood\s+pressure|temperature|scale|pulse\s+oximeter|doctor\s+will\s+be\s+in|room\s+you\s+in)\b",
+        re.IGNORECASE
+    )
+
+    for text in texts:
+        words = text.split()
+        total_words += len(words)
+        cnt_1st += len(re_1st.findall(text))
+        cnt_2nd += len(re_2nd.findall(text))
+        cnt_3rd += len(re_3rd.findall(text))
+        if "?" in text or re.match(r"^\s*(?:how|what|when|where|why|do\s+you|have\s+you|did\s+you|are\s+you|is\s+there|any)\b", text, re.IGNORECASE):
+            cnt_questions += 1
+        cnt_directives += len(re_directive.findall(text))
+        cnt_symptoms += len(re_symptom.findall(text))
+        if re_address_doc.search(text):
+            cnt_address_doc += 1
+        if re_address_pt.search(text):
+            cnt_address_pt += 1
+        if re_triage.search(text):
+            cnt_triage += 1
+
+    n_utts = max(1, len(texts))
+    norm = max(1.0, total_words / 10.0)
+
+    doc_score = (
+        (cnt_2nd / norm) * 2.0 +
+        (cnt_questions / n_utts) * 2.5 +
+        (cnt_directives / norm) * 3.0 +
+        (cnt_address_pt * 4.0) -
+        (cnt_1st / norm) * 0.8 -
+        (cnt_address_doc * 5.0)
+    )
+
+    pt_score = (
+        (cnt_1st / norm) * 2.2 +
+        (cnt_symptoms / norm) * 2.5 +
+        (cnt_address_doc * 4.0) -
+        (cnt_directives / norm) * 2.0 -
+        (cnt_address_pt * 5.0)
+    )
+
+    cg_score = (
+        (cnt_3rd / norm) * 3.5 +
+        (cnt_symptoms / norm) * 1.5 +
+        (cnt_address_doc * 3.0) -
+        (cnt_address_pt * 4.0)
+    )
+
+    nurse_score = (
+        (cnt_triage * 4.0) +
+        (cnt_2nd / norm) * 1.2 +
+        (cnt_questions / n_utts) * 1.5
+    )
+
+    return {
+        SpeakerRole.DOCTOR: max(0.01, float(doc_score)),
+        SpeakerRole.PATIENT: max(0.01, float(pt_score)),
+        SpeakerRole.CAREGIVER: max(0.01, float(cg_score)),
+        SpeakerRole.NURSE: max(0.01, float(nurse_score)),
+    }
 
 
 def cluster_segments_by_voice(
@@ -290,22 +399,17 @@ def diarize_consultation_audio(
     for pos, seg_idx in enumerate(valid_indices):
         seg_clusters[seg_idx] = int(cluster_labels[pos])
 
-    # Tally clinical evidence for each detected speaker cluster
-    cluster_evidence: Dict[int, Dict[SpeakerRole, float]] = {
-        c: {
-            SpeakerRole.DOCTOR: 0.0,
-            SpeakerRole.PATIENT: 0.0,
-            SpeakerRole.CAREGIVER: 0.0,
-            SpeakerRole.NURSE: 0.0
-        }
-        for c in unique_clusters
-    }
-
-    for idx, seg in enumerate(segments):
-        role, conf, _ = estimate_speaker_role(seg.text)
-        cluster = seg_clusters.get(idx)
-        if cluster is not None and role in cluster_evidence[cluster] and conf >= 0.40:
-            cluster_evidence[cluster][role] += conf
+    # Tally generalized conversational dynamics profile for each detected speaker cluster
+    cluster_evidence: Dict[int, Dict[SpeakerRole, float]] = {}
+    for c in unique_clusters:
+        c_texts = [segments[idx].text for idx in valid_indices if seg_clusters.get(idx) == c]
+        cluster_evidence[c] = score_cluster_conversational_profile(c_texts)
+        # Augment with individual high-confidence anchor matches
+        for idx in valid_indices:
+            if seg_clusters.get(idx) == c:
+                role, conf, _ = estimate_speaker_role(segments[idx].text)
+                if role in cluster_evidence[c] and conf >= 0.70:
+                    cluster_evidence[c][role] += conf * 2.0
 
     # Global optimal assignment of unique clusters to distinct roles
     role_candidates = [SpeakerRole.DOCTOR, SpeakerRole.PATIENT, SpeakerRole.CAREGIVER, SpeakerRole.NURSE]
