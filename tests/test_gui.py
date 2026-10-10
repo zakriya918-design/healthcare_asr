@@ -233,5 +233,71 @@ def test_gui_icd10_tab_render(tk_app):
     assert len(tk_app.tree_icd10.get_children()) == 0
 
 
+def test_gui_vu_meter(tk_app):
+    assert tk_app.canvas_vu is not None
+    assert tk_app.vu_bar_id is not None
+    assert tk_app.lbl_vu_text["text"] == "-- dB"
+
+    # Simulate level callback
+    tk_app._on_audio_level(0.75, 0.5)
+    assert tk_app.latest_peak == 0.75
+    assert tk_app.latest_rms == 0.5
+
+    # Mock recorder active
+    mock_recorder = MagicMock()
+    mock_recorder.is_recording = True
+    tk_app.recorder = mock_recorder
+
+    # Trigger update
+    tk_app._update_vu_meter()
+    coords = tk_app.canvas_vu.coords(tk_app.vu_bar_id)
+    assert coords[2] > 0  # Width is greater than 0
+    assert "dB" in tk_app.lbl_vu_text["text"]
+
+    # When recorder stops, meter returns to idle
+    mock_recorder.is_recording = False
+    tk_app._update_vu_meter()
+    assert tk_app.lbl_vu_text["text"] == "-- dB"
+
+
+def test_gui_export_zip_and_fhir(tk_app, tmp_path):
+    assert tk_app.btn_export_zip["state"] == tk.DISABLED
+    assert tk_app.btn_export_fhir["state"] == tk.DISABLED
+
+    record = ConsultationRecord(
+        demographics=PatientDemographics(patient_id="GUI-EXP-1", age=40, gender="Male"),
+        raw_transcript="Doctor: All clear.",
+        soap_note=SOAPNote(subjective="Clear.", assessment="Healthy.", plan="Annual checkup.")
+    )
+    tk_app._handle_transcription_complete(record)
+
+    assert tk_app.btn_export_zip["state"] == tk.NORMAL
+    assert tk_app.btn_export_fhir["state"] == tk.NORMAL
+
+    # Test FHIR export triggered via GUI
+    with patch("src.processing.fhir_exporter.OUTPUT_DIR", tmp_path, create=True), \
+         patch("app.OUTPUT_DIR", tmp_path), \
+         patch("tkinter.messagebox.showinfo") as mock_info:
+        tk_app.export_fhir_record()
+        mock_info.assert_called_once()
+        fhir_files = list(tmp_path.glob("fhir_bundle_*.json"))
+        assert len(fhir_files) == 1
+
+    # Test ZIP export triggered via GUI
+    target_zip = tmp_path / "gui_bundle.zip"
+    with patch("tkinter.filedialog.asksaveasfilename", return_value=str(target_zip)), \
+         patch("tkinter.messagebox.showinfo") as mock_info:
+        tk_app.export_zip_bundle()
+        assert target_zip.is_file()
+        mock_info.assert_called_once()
+
+    # Test clear disables both
+    tk_app.clear_consultation()
+    assert tk_app.btn_export_zip["state"] == tk.DISABLED
+    assert tk_app.btn_export_fhir["state"] == tk.DISABLED
+
+
+
+
 
 

@@ -13,7 +13,7 @@ from pathlib import Path
 import queue
 import threading
 import time
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple, Union
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
@@ -40,6 +40,7 @@ class AudioRecorder:
     """
     Manages mono audio recording at 16,000 Hz.
     Provides non-blocking thread-safe start, stop, and cancel controls.
+    Supports real-time audio level monitoring via level_callback(peak, rms).
     """
 
     def __init__(
@@ -48,7 +49,8 @@ class AudioRecorder:
         channels: int = 1,
         device: Optional[Union[int, str]] = None,
         recordings_dir: Optional[Path] = None,
-        max_duration_seconds: int = 3600  # Safety limit: 1 hour maximum
+        max_duration_seconds: int = 3600,  # Safety limit: 1 hour maximum
+        level_callback: Optional[Callable[[float, float], None]] = None
     ):
         self.sample_rate = sample_rate
         self.channels = channels
@@ -56,12 +58,15 @@ class AudioRecorder:
         self.max_duration_seconds = max_duration_seconds
         self.recordings_dir = recordings_dir or Path(r"C:\Users\Aziza\HEALTHCARE_ASR\recordings")
         self.recordings_dir.mkdir(parents=True, exist_ok=True)
+        self.level_callback = level_callback
 
         self._stream: Optional[sd.InputStream] = None
         self._audio_queue: queue.Queue = queue.Queue()
         self._is_recording = False
         self._lock = threading.Lock()
         self._start_time: Optional[float] = None
+        self._last_peak: float = 0.0
+        self._last_rms: float = 0.0
 
     @property
     def is_recording(self) -> bool:
@@ -87,6 +92,16 @@ class AudioRecorder:
             logger.warning(f"Failed to query sound devices: {e}")
             return []
 
+    @property
+    def last_peak(self) -> float:
+        with self._lock:
+            return self._last_peak
+
+    @property
+    def last_rms(self) -> float:
+        with self._lock:
+            return self._last_rms
+
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info, status):
         """Callback executed by PortAudio in a separate audio thread."""
         if status:
@@ -94,6 +109,20 @@ class AudioRecorder:
         if self._is_recording:
             # Copy data to prevent buffer overwrite
             self._audio_queue.put(indata.copy())
+
+            # Compute audio levels
+            if indata.size > 0:
+                peak = float(np.max(np.abs(indata)))
+                rms = float(np.sqrt(np.mean(indata**2)))
+                with self._lock:
+                    self._last_peak = peak
+                    self._last_rms = rms
+
+                if self.level_callback is not None:
+                    try:
+                        self.level_callback(peak, rms)
+                    except Exception as e:
+                        logger.debug(f"Error in level_callback: {e}")
 
     def start_recording(self) -> None:
         """Starts recording audio from designated or default input device."""
@@ -149,6 +178,8 @@ class AudioRecorder:
                 raise AudioRecorderError("Cannot stop recording: No active recording.")
 
             self._is_recording = False
+            self._last_peak = 0.0
+            self._last_rms = 0.0
             duration_est = time.time() - (self._start_time or time.time())
 
             if self._stream:
@@ -159,6 +190,12 @@ class AudioRecorder:
                     logger.warning(f"Error while closing audio stream: {e}")
                 finally:
                     self._stream = None
+
+        if self.level_callback is not None:
+            try:
+                self.level_callback(0.0, 0.0)
+            except Exception:
+                pass
 
         # Drain audio chunks from queue
         chunks = []
@@ -200,6 +237,8 @@ class AudioRecorder:
         """Stops recording and cleanly discards any captured audio."""
         with self._lock:
             self._is_recording = False
+            self._last_peak = 0.0
+            self._last_rms = 0.0
             if self._stream:
                 try:
                     self._stream.stop()
@@ -208,6 +247,12 @@ class AudioRecorder:
                     pass
                 finally:
                     self._stream = None
+
+        if self.level_callback is not None:
+            try:
+                self.level_callback(0.0, 0.0)
+            except Exception:
+                pass
 
         while not self._audio_queue.empty():
             try:

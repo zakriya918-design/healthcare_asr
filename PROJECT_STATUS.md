@@ -4,7 +4,7 @@
 **Location:** `c:\Users\Aziza\Desktop\project` / `C:\Users\Aziza\HEALTHCARE_ASR`  
 **Current Status:** Fully Built, Tested, and Operational  
 **Last Verified:** October 10, 2026  
-**Test Suite Pass Rate:** **86 / 86 tests passed (100%)**
+**Test Suite Pass Rate:** **103 / 103 tests passed (100%)**
 
 ---
 
@@ -38,6 +38,9 @@ All components run locally on Windows (CPU-compatible inference with Faster-Whis
 | **Phase 16: Past Record Search & Browser** | Completed | `src/processing/record_search.py`: Comprehensive indexing and multi-criteria search (query, status, diagnosis, medication, date) with interactive Treeview browser in `app.py`. |
 | **Phase 17: Audio Pre-Flight Diagnostic** | Completed | `src/audio/diagnostics.py`: Signal analysis for peak amplitude, RMS dBFS, background noise floor, SNR, clipping detection, silence detection, and clinical recommendations with GUI modal (`🩺 Check`). |
 | **Phase 18: ICD-10 Clinical Coding Assistant** | Completed | `src/processing/icd10_coding.py`: Rule-based and synonym mapping of extracted diagnoses, conditions, and symptoms to standard ICD-10-CM codes with confidence scoring, Tab 5 in `app.py`, and HTML/PDF report tables. |
+| **Phase 19: Live Audio VU Meter & Real-time Microphone Level Bar** | Completed | `src/audio/recorder.py` and `app.py`: Real-time thread-safe audio level monitoring (peak amplitude, RMS dBFS), dynamic gradient meter bar (green/yellow/red clipping), smooth decay, and numerical dBFS readout in desktop GUI. |
+| **Phase 20: Consultation Bundle ZIP Archive Exporter & SHA-256 Manifest** | Completed | `src/processing/archive_exporter.py`: Packages complete consultation encounters (record JSON, HTML report, PDF report, WAV audio) into a single ZIP archive with cryptographic SHA-256 integrity manifest and tamper-verification utility. |
+| **Phase 21: HL7 FHIR R4 Interoperability Exporter** | Completed | `src/processing/fhir_exporter.py`: Generates standardized HL7 FHIR R4 Document Bundles (`Composition`, `Patient`, `Condition`, `Observation`, `MedicationStatement`, `AllergyIntolerance`) with LOINC vitals coding and ICD-10 condition mapping for hospital EMR/EHR interoperability. |
 
 ---
 
@@ -49,113 +52,29 @@ All components run locally on Windows (CPU-compatible inference with Faster-Whis
 ```
 
 ### Results Summary
-- **Total Tests Collected:** 86
-- **Tests Passed:** 86
+- **Total Tests Collected:** 103
+- **Tests Passed:** 103
 - **Tests Failed:** 0
-- **Execution Time:** ~4.8 seconds
+- **Pass Rate:** **100%**
+- **Execution Time:** ~8.7 seconds
 
-### Breakdown by Module
-1. `tests/test_icd10_coding.py` — **7 passed**: Term normalization, exact and synonym matching, R-code symptom mapping, unmatched handling, full clinical record batch mapping, documentation block formatting, serialization.
-2. `tests/test_audio_diagnostics.py` — **9 passed**: Peak/RMS conversions, empty audio, silence detection, clipping ratio, SNR, speech tone burst, device errors, serialization.
-3. `tests/test_medical_processor.py` — **10 passed**: Demographics, positive/negative symptoms, allergies, vitals, medications, diagnoses, unclassified statements, expanded lexicons.
-4. `tests/test_soap_note.py` — **6 passed**: Section placement, missing vitals representation, uncertainty handling, completeness.
-5. `tests/test_patient_record.py` — **8 passed**: Dataclass construction, null field safety, serialization round-trip, finding statuses.
-6. `tests/test_json_export.py` — **4 passed**: Atomic file writing, non-overwriting filenames, deserialization into Python models.
-7. `tests/test_speaker_processor.py` — **5 passed**: Role heuristic rules, patient pattern matching, unknown fallbacks, sequence processing.
-8. `tests/test_audio_recorder.py` — **8 passed**: WAV format validation, device failure simulation, empty audio rejection, explicit device selection.
-9. `tests/test_asr.py` — **5 passed**: Empty file detection, missing file handling, corrupted file handling, mocked Faster-Whisper inference.
-10. `tests/test_exporter.py` — **4 passed**: HTML and PDF generation, clinic branding inclusion, ICD-10 table generation, file system verification.
-11. `tests/test_gui.py` — **11 passed**: Tkinter initialization, worker queue polling, error dialogue display, consultation reset, model switcher, sign-off, JSON opening, mic selector, search browser dialog, audio diagnostic modal, ICD-10 tab rendering.
-12. `tests/test_record_search.py` — **6 passed**: Empty directory handling, valid record indexing, batch summary filtering, multi-field search, status filtering, clinical entity filters, date ranges.
-13. `tests/test_batch_processor.py` — **2 passed**: Empty folder handling, mixed valid/invalid audio ingestion with summary generation.
-14. `tests/test_end_to_end_integration.py` — **1 passed**: Full end-to-end synthetic audio transcription via Faster-Whisper, speaker role extraction, clinical entity parsing, SOAP note synthesis, JSON serialization, and reload.
-
----
-
-## 3. Test Verification Metrics
-
-### Test Suite Execution
-```powershell
-& "c:\Users\Aziza\Desktop\project\.venv\Scripts\python.exe" -m pytest -v
-```
-
-### Results Summary
-- **Total Tests Collected:** 78
-- **Tests Passed:** 78
-- **Tests Failed:** 0
-- **Execution Time:** ~5.5 seconds
-
-### Breakdown by Module
-1. `tests/test_audio_diagnostics.py` — **9 passed**: Peak/RMS conversions, empty audio, silence detection, clipping ratio, SNR, speech tone burst, device errors, serialization.
-2. `tests/test_medical_processor.py` — **10 passed**: Demographics, positive/negative symptoms, allergies, vitals, medications, diagnoses, unclassified statements, expanded lexicons.
-3. `tests/test_soap_note.py` — **6 passed**: Section placement, missing vitals representation, uncertainty handling, completeness.
-4. `tests/test_patient_record.py` — **8 passed**: Dataclass construction, null field safety, serialization round-trip, finding statuses.
-5. `tests/test_json_export.py` — **4 passed**: Atomic file writing, non-overwriting filenames, deserialization into Python models.
-6. `tests/test_speaker_processor.py` — **5 passed**: Role heuristic rules, patient pattern matching, unknown fallbacks, sequence processing.
-7. `tests/test_audio_recorder.py` — **8 passed**: WAV format validation, device failure simulation, empty audio rejection, explicit device selection.
-8. `tests/test_asr.py` — **5 passed**: Empty file detection, missing file handling, corrupted file handling, mocked Faster-Whisper inference.
-9. `tests/test_exporter.py` — **4 passed**: HTML and PDF generation, clinic branding inclusion, file system verification.
-10. `tests/test_gui.py` — **10 passed**: Tkinter initialization, worker queue polling, error dialogue display, consultation reset, model switcher, sign-off, JSON opening, mic selector, search browser dialog, audio diagnostic modal.
-11. `tests/test_record_search.py` — **6 passed**: Empty directory handling, valid record indexing, batch summary filtering, multi-field search, status filtering, clinical entity filters, date ranges.
-12. `tests/test_batch_processor.py` — **2 passed**: Empty folder handling, mixed valid/invalid audio ingestion with summary generation.
-13. `tests/test_end_to_end_integration.py` — **1 passed**: Full end-to-end synthetic audio transcription via Faster-Whisper, speaker role extraction, clinical entity parsing, SOAP note synthesis, JSON serialization, and reload.
-
----
-
-## 3. Test Verification Metrics
-
-### Test Suite Execution
-```powershell
-& "c:\Users\Aziza\Desktop\project\.venv\Scripts\python.exe" -m pytest -v
-```
-
-### Results Summary
-- **Total Tests Collected:** 68
-- **Tests Passed:** 68
-- **Tests Failed:** 0
-- **Execution Time:** ~7.8 seconds
-
-### Breakdown by Module
-1. `tests/test_medical_processor.py` — **10 passed**: Demographics, positive/negative symptoms, allergies, vitals, medications, diagnoses, unclassified statements, expanded lexicons.
-2. `tests/test_soap_note.py` — **6 passed**: Section placement, missing vitals representation, uncertainty handling, completeness.
-3. `tests/test_patient_record.py` — **8 passed**: Dataclass construction, null field safety, serialization round-trip, finding statuses.
-4. `tests/test_json_export.py` — **4 passed**: Atomic file writing, non-overwriting filenames, deserialization into Python models.
-5. `tests/test_speaker_processor.py` — **5 passed**: Role heuristic rules, patient pattern matching, unknown fallbacks, sequence processing.
-6. `tests/test_audio_recorder.py` — **8 passed**: WAV format validation, device failure simulation, empty audio rejection, explicit device selection.
-7. `tests/test_asr.py` — **5 passed**: Empty file detection, missing file handling, corrupted file handling, mocked Faster-Whisper inference.
-8. `tests/test_exporter.py` — **4 passed**: HTML and PDF generation, clinic branding inclusion, file system verification.
-9. `tests/test_gui.py` — **9 passed**: Tkinter initialization, worker queue polling, error dialogue display, consultation reset, model switcher, sign-off, JSON opening, mic selector, search browser dialog.
-10. `tests/test_record_search.py` — **6 passed**: Empty directory handling, valid record indexing, batch summary filtering, multi-field search, status filtering, clinical entity filters, date ranges.
-11. `tests/test_batch_processor.py` — **2 passed**: Empty folder handling, mixed valid/invalid audio ingestion with summary generation.
-12. `tests/test_end_to_end_integration.py` — **1 passed**: Full end-to-end synthetic audio transcription via Faster-Whisper, speaker role extraction, clinical entity parsing, SOAP note synthesis, JSON serialization, and reload.
-
----
-
-## 3. Test Verification Metrics
-
-### Test Suite Execution
-```powershell
-& "c:\Users\Aziza\Desktop\project\.venv\Scripts\python.exe" -m pytest -v
-```
-
-### Results Summary
-- **Total Tests Collected:** 61
-- **Tests Passed:** 61
-- **Tests Failed:** 0
-- **Execution Time:** ~11.1 seconds
-
-### Breakdown by Module
-1. `tests/test_medical_processor.py` — **10 passed**: Demographics, positive/negative symptoms, allergies, vitals, medications, diagnoses, unclassified statements, expanded lexicons.
-2. `tests/test_soap_note.py` — **6 passed**: Section placement, missing vitals representation, uncertainty handling, completeness.
-3. `tests/test_patient_record.py` — **8 passed**: Dataclass construction, null field safety, serialization round-trip, finding statuses.
-4. `tests/test_json_export.py` — **4 passed**: Atomic file writing, non-overwriting filenames, deserialization into Python models.
-5. `tests/test_speaker_processor.py` — **5 passed**: Role heuristic rules, patient pattern matching, unknown fallbacks, sequence processing.
-6. `tests/test_audio_recorder.py` — **8 passed**: WAV format validation, device failure simulation, empty audio rejection, explicit device selection.
-7. `tests/test_asr.py` — **5 passed**: Empty file detection, missing file handling, corrupted file handling, mocked Faster-Whisper inference.
-8. `tests/test_exporter.py` — **4 passed**: HTML and PDF generation, clinic branding inclusion, file system verification.
-9. `tests/test_gui.py` — **8 passed**: Tkinter initialization, worker queue polling, error dialogue display, consultation reset, model switcher, sign-off, JSON opening, mic selector.
-10. `tests/test_batch_processor.py` — **2 passed**: Empty folder handling, mixed valid/invalid audio ingestion with summary generation.
-11. `tests/test_end_to_end_integration.py` — **1 passed**: Full end-to-end synthetic audio transcription via Faster-Whisper, speaker role extraction, clinical entity parsing, SOAP note synthesis, JSON serialization, and reload.
+### Breakdown by Module (16 Suites)
+1. `tests/test_archive_exporter.py` — **6 passed**: SHA-256 hash calculation, ZIP archive bundling without audio, bundle with audio WAV, tamper detection with modified bytes, missing manifest rejection, nonexistent file handling.
+2. `tests/test_fhir_exporter.py` — **8 passed**: FHIR ID sanitization, FHIR document bundle structure, preliminary draft vs approved final status, negated finding mapping to `refuted`, LOINC vital signs observations, medication statements, allergy intolerances, bundle schema validation.
+3. `tests/test_gui.py` — **13 passed**: Tkinter initialization, worker queue polling, error handling, consultation reset, model switcher, digital sign-off, JSON opening, mic device switcher, search browser window, audio diagnostic modal, ICD-10 tab rendering, live VU meter updates and decay, ZIP & FHIR export GUI controls.
+4. `tests/test_audio_recorder.py` — **9 passed**: WAV format validation, device failure simulation, empty audio rejection, explicit device selection, real-time level callback, peak and RMS tracking.
+5. `tests/test_icd10_coding.py` — **7 passed**: Term normalization, exact and synonym matching, R-code symptom mapping, unmatched handling, full clinical record batch mapping, documentation block formatting, serialization.
+6. `tests/test_audio_diagnostics.py` — **9 passed**: Peak/RMS conversions, empty audio, silence detection, clipping ratio, SNR, speech tone burst, device errors, serialization.
+7. `tests/test_medical_processor.py` — **10 passed**: Demographics, positive/negative symptoms, allergies, vitals, medications, diagnoses, unclassified statements, expanded lexicons.
+8. `tests/test_soap_note.py` — **6 passed**: Section placement, missing vitals representation, uncertainty handling, completeness.
+9. `tests/test_patient_record.py` — **8 passed**: Dataclass construction, null field safety, serialization round-trip, finding statuses.
+10. `tests/test_json_export.py` — **4 passed**: Atomic file writing, non-overwriting filenames, deserialization into Python models.
+11. `tests/test_speaker_processor.py` — **5 passed**: Role heuristic rules, patient pattern matching, unknown fallbacks, sequence processing.
+12. `tests/test_asr.py` — **5 passed**: Empty file detection, missing file handling, corrupted file handling, mocked Faster-Whisper inference.
+13. `tests/test_exporter.py` — **4 passed**: HTML and PDF generation, clinic branding inclusion, ICD-10 table generation, file system verification.
+14. `tests/test_record_search.py` — **6 passed**: Empty directory handling, valid record indexing, batch summary filtering, multi-field search, status filtering, clinical entity filters, date ranges.
+15. `tests/test_batch_processor.py` — **2 passed**: Empty folder handling, mixed valid/invalid audio ingestion with summary generation.
+16. `tests/test_end_to_end_integration.py` — **1 passed**: Full end-to-end synthetic audio transcription via Faster-Whisper, speaker role extraction, clinical entity parsing, SOAP note synthesis, JSON serialization, and reload.
 
 ---
 

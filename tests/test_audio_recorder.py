@@ -95,3 +95,36 @@ def test_recorder_with_explicit_device(tmp_path):
             recorder.cancel_recording()
             assert recorder.is_recording is False
 
+
+def test_recorder_level_callback_and_tracking(tmp_path):
+    received_levels = []
+
+    def on_level(peak, rms):
+        received_levels.append((peak, rms))
+
+    recorder = AudioRecorder(recordings_dir=tmp_path, level_callback=on_level)
+    assert recorder.last_peak == 0.0
+    assert recorder.last_rms == 0.0
+
+    mock_dev = [{"index": 0, "name": "Default Mic", "max_input_channels": 1}]
+    with patch.object(AudioRecorder, "get_available_input_devices", return_value=mock_dev):
+        with patch("sounddevice.InputStream") as mock_stream_cls:
+            recorder.start_recording()
+            assert recorder.is_recording is True
+
+            # Simulate audio callback with 0.5 amplitude sine block
+            sample_block = np.full((160, 1), 0.5, dtype=np.float32)
+            recorder._audio_callback(sample_block, 160, None, None)
+
+            assert recorder.last_peak == pytest.approx(0.5, abs=0.01)
+            assert recorder.last_rms == pytest.approx(0.5, abs=0.01)
+            assert len(received_levels) >= 1
+            assert received_levels[-1][0] == pytest.approx(0.5, abs=0.01)
+
+            recorder.cancel_recording()
+            assert recorder.is_recording is False
+            assert recorder.last_peak == 0.0
+            assert recorder.last_rms == 0.0
+            assert received_levels[-1] == (0.0, 0.0)
+
+

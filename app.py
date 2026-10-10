@@ -13,6 +13,7 @@ Features:
 from __future__ import annotations
 import json
 import logging
+import math
 from pathlib import Path
 import queue
 import sys
@@ -42,6 +43,8 @@ from src.processing.exporter import export_html_report, export_pdf_report, Clini
 from src.processing.record_search import index_consultation_records, search_records, RecordSummary
 from src.audio.diagnostics import run_audio_diagnostic, AudioDiagnosticResult
 from src.processing.icd10_coding import suggest_icd10_codes, ICD10CodeMatch, format_icd10_coding_block
+from src.processing.archive_exporter import export_consultation_zip, verify_consultation_zip
+from src.processing.fhir_exporter import export_fhir_json, validate_fhir_bundle
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("HealthcareASR")
@@ -71,9 +74,13 @@ class HealthcareASRApp:
         self.available_mics = AudioRecorder.get_available_input_devices()
         self.branding: ClinicBranding = self._load_clinic_branding()
         self.current_record: Optional[ConsultationRecord] = None
+        self.current_audio_path: Optional[Path] = None
         self.worker_queue: queue.Queue = queue.Queue()
         self.recording_start_time: Optional[float] = None
         self.is_busy = False
+        self.latest_peak: float = 0.0
+        self.latest_rms: float = 0.0
+        self.displayed_vu_level: float = 0.0
 
         self._setup_styles()
         self._build_header()
@@ -84,6 +91,7 @@ class HealthcareASRApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.after(100, self._poll_worker_queue)
         self.root.after(500, self._update_recording_timer)
+        self.root.after(50, self._update_vu_meter)
 
     def _setup_styles(self):
         style = ttk.Style()
@@ -286,6 +294,34 @@ class HealthcareASRApp:
         )
         self.btn_export_pdf.pack(side=tk.RIGHT, padx=2)
 
+        self.btn_export_fhir = tk.Button(
+            ctrl_frame,
+            text="🔥 Export FHIR",
+            font=("Segoe UI", 9, "bold"),
+            bg="#EA580C",
+            fg="white",
+            padx=10,
+            pady=6,
+            relief=tk.FLAT,
+            state=tk.DISABLED,
+            command=self.export_fhir_record
+        )
+        self.btn_export_fhir.pack(side=tk.RIGHT, padx=2)
+
+        self.btn_export_zip = tk.Button(
+            ctrl_frame,
+            text="📦 Export ZIP",
+            font=("Segoe UI", 9, "bold"),
+            bg="#B45309",
+            fg="white",
+            padx=10,
+            pady=6,
+            relief=tk.FLAT,
+            state=tk.DISABLED,
+            command=self.export_zip_bundle
+        )
+        self.btn_export_zip.pack(side=tk.RIGHT, padx=2)
+
         self.btn_sign_off = tk.Button(
             ctrl_frame,
             text="✍️ Sign Off Note",
@@ -311,7 +347,41 @@ class HealthcareASRApp:
             fg="#475569",
             bg="#E2E8F0"
         )
-        self.lbl_record_status.pack(side=tk.LEFT, padx=(0, 16))
+        self.lbl_record_status.pack(side=tk.LEFT, padx=(0, 8))
+
+        # Real-time Microphone VU Meter Bar
+        self.vu_frame = tk.Frame(status_frame, bg="#E2E8F0")
+        self.vu_frame.pack(side=tk.LEFT, padx=(0, 16))
+
+        tk.Label(
+            self.vu_frame,
+            text="Level:",
+            font=("Segoe UI", 8, "bold"),
+            fg="#475569",
+            bg="#E2E8F0"
+        ).pack(side=tk.LEFT, padx=(0, 4))
+
+        self.canvas_vu = tk.Canvas(
+            self.vu_frame,
+            width=80,
+            height=12,
+            bg="#CBD5E1",
+            highlightthickness=1,
+            highlightbackground="#94A3B8"
+        )
+        self.canvas_vu.pack(side=tk.LEFT, padx=(0, 4))
+        self.vu_bar_id = self.canvas_vu.create_rectangle(0, 0, 0, 12, fill="#10B981", width=0)
+
+        self.lbl_vu_text = tk.Label(
+            self.vu_frame,
+            text="-- dB",
+            font=("Segoe UI", 8),
+            fg="#64748B",
+            bg="#E2E8F0",
+            width=8,
+            anchor=tk.W
+        )
+        self.lbl_vu_text.pack(side=tk.LEFT)
 
         self.lbl_asr_status = tk.Label(
             status_frame,
@@ -686,6 +756,55 @@ class HealthcareASRApp:
             )
         self.root.after(500, self._update_recording_timer)
 
+    def _on_audio_level(self, peak: float, rms: float):
+        self.latest_peak = peak
+        self.latest_rms = rms
+
+    def _update_vu_meter(self):
+        try:
+            if self.recorder and self.recorder.is_recording:
+                target = self.latest_peak
+                # Smooth peak decay
+                if target > self.displayed_vu_level:
+                    self.displayed_vu_level = target
+                else:
+                    self.displayed_vu_level = max(0.0, self.displayed_vu_level * 0.82)
+
+                level_ratio = min(1.0, max(0.0, self.displayed_vu_level))
+                bar_width = int(level_ratio * 80)
+
+                if level_ratio > 1e-4:
+                    dbfs = 20.0 * math.log10(level_ratio)
+                    db_str = f"{int(dbfs)} dB"
+                else:
+                    db_str = "-∞ dB"
+
+                if level_ratio > 0.85:
+                    bar_color = "#EF4444"  # Red: Clipping danger
+                    db_text = f"CLIP {db_str}"
+                    text_color = "#DC2626"
+                elif level_ratio > 0.35:
+                    bar_color = "#F59E0B"  # Yellow: Optimal voice range
+                    db_text = db_str
+                    text_color = "#B45309"
+                else:
+                    bar_color = "#10B981"  # Green: Quiet / Normal
+                    db_text = db_str
+                    text_color = "#047857"
+
+                self.canvas_vu.coords(self.vu_bar_id, 0, 0, bar_width, 12)
+                self.canvas_vu.itemconfig(self.vu_bar_id, fill=bar_color)
+                self.lbl_vu_text.config(text=db_text, fg=text_color)
+            else:
+                if self.displayed_vu_level > 0.0:
+                    self.displayed_vu_level = 0.0
+                    self.canvas_vu.coords(self.vu_bar_id, 0, 0, 0, 12)
+                    self.lbl_vu_text.config(text="-- dB", fg="#64748B")
+        except Exception as e:
+            logger.debug(f"VU meter update error: {e}")
+        finally:
+            self.root.after(50, self._update_vu_meter)
+
     def start_recording(self):
         if self.is_busy:
             return
@@ -693,7 +812,8 @@ class HealthcareASRApp:
         try:
             self.recorder = AudioRecorder(
                 recordings_dir=RECORDINGS_DIR,
-                device=self.selected_mic_index
+                device=self.selected_mic_index,
+                level_callback=self._on_audio_level
             )
             self.recorder.start_recording()
             self.recording_start_time = time.time()
@@ -724,10 +844,11 @@ class HealthcareASRApp:
 
         def worker_stop_and_transcribe():
             try:
-                wav_path, duration = self.recorder.stop_recording()
+                wav_path = self.recorder.stop_recording()
+                self.current_audio_path = wav_path
                 self.worker_queue.put({
                     "type": "status",
-                    "text": f"Recorded {duration:.1f}s of audio. Launching Whisper ASR...",
+                    "text": f"Saved {wav_path.name}. Launching Whisper ASR...",
                     "asr_text": "Model: Loading & Transcribing..."
                 })
                 self._run_transcription_pipeline(wav_path)
@@ -763,6 +884,7 @@ class HealthcareASRApp:
         self._start_pipeline_on_file(SYNTHETIC_WAV_PATH)
 
     def _start_pipeline_on_file(self, wav_path: Path):
+        self.current_audio_path = Path(wav_path)
         self._set_busy_state(True)
         self.lbl_record_status.config(text=f"● Audio: {wav_path.name}", fg="#059669")
         self.lbl_feedback.config(text=f"Loading audio: {wav_path.name}... Starting transcription.")
@@ -844,6 +966,8 @@ class HealthcareASRApp:
         self.btn_export.config(state=tk.NORMAL)
         self.btn_export_html.config(state=tk.NORMAL)
         self.btn_export_pdf.config(state=tk.NORMAL)
+        self.btn_export_fhir.config(state=tk.NORMAL)
+        self.btn_export_zip.config(state=tk.NORMAL)
         self.btn_sign_off.config(state=tk.NORMAL)
 
     def _handle_error(self, error_msg: str):
@@ -1066,6 +1190,85 @@ class HealthcareASRApp:
         except Exception as e:
             messagebox.showerror("Export Error", f"Failed to export PDF report:\n\n{e}")
             self.lbl_feedback.config(text=f"Export error: {e}")
+
+    def export_fhir_record(self):
+        if not self.current_record:
+            messagebox.showwarning("No Data", "No completed consultation record available to export.")
+            return
+
+        try:
+            cid_clean = self.current_record.consultation_id[:8]
+            pid_clean = (self.current_record.demographics.patient_id or "patient").replace(" ", "_")
+            out_file = OUTPUT_DIR / f"fhir_bundle_{pid_clean}_{cid_clean}.json"
+
+            saved_path = export_fhir_json(self.current_record, out_file)
+
+            # Validate bundle conformance
+            bundle_data = json.loads(saved_path.read_text(encoding="utf-8"))
+            is_valid, errors = validate_fhir_bundle(bundle_data)
+            status_text = "✅ Valid FHIR R4 Document" if is_valid else f"⚠️ Validation warnings: {', '.join(errors)}"
+
+            resource_count = len(bundle_data.get("entry", []))
+            messagebox.showinfo(
+                "FHIR R4 Bundle Exported",
+                f"HL7 FHIR R4 Clinical Document Bundle saved!\n\n"
+                f"File: {saved_path.name}\n"
+                f"Resources Included: {resource_count}\n"
+                f"Conformance: {status_text}\n\n"
+                f"Destination:\n{saved_path}"
+            )
+            self.lbl_feedback.config(text=f"Exported FHIR R4 document: {saved_path.name}")
+        except Exception as e:
+            messagebox.showerror("FHIR Export Error", f"Failed to export FHIR document:\n\n{e}")
+            self.lbl_feedback.config(text=f"FHIR export error: {e}")
+
+    def export_zip_bundle(self):
+        if not self.current_record:
+            messagebox.showwarning("No Data", "No completed consultation record available to export.")
+            return
+
+        try:
+            cid_clean = self.current_record.consultation_id[:8]
+            pid_clean = (self.current_record.demographics.patient_id or "patient").replace(" ", "_")
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            default_name = f"consultation_bundle_{pid_clean}_{cid_clean}_{timestamp}.zip"
+
+            chosen_file = filedialog.asksaveasfilename(
+                title="Export Consultation ZIP Archive Bundle",
+                initialdir=str(OUTPUT_DIR),
+                initialfile=default_name,
+                defaultextension=".zip",
+                filetypes=[("ZIP Archive Bundle", "*.zip"), ("All Files", "*.*")]
+            )
+            if not chosen_file:
+                return
+
+            dest_path = Path(chosen_file)
+            saved_zip = export_consultation_zip(
+                record=self.current_record,
+                output_dir=dest_path.parent,
+                audio_path=self.current_audio_path,
+                branding=self.branding,
+                zip_filename=dest_path.name
+            )
+
+            # Verify integrity
+            is_valid, msg, manifest = verify_consultation_zip(saved_zip)
+            verif_str = "✅ Verified SHA-256 Tamper-Proof" if is_valid else f"⚠️ Integrity warning: {msg}"
+            file_count = len(manifest.get("files", {}))
+
+            messagebox.showinfo(
+                "Consultation Bundle Exported",
+                f"Encapsulated consultation archive created successfully!\n\n"
+                f"Archive: {saved_zip.name}\n"
+                f"Files Packaged: {file_count}\n"
+                f"Integrity Manifest: {verif_str}\n\n"
+                f"Destination:\n{saved_zip}"
+            )
+            self.lbl_feedback.config(text=f"Exported verified ZIP bundle: {saved_zip.name}")
+        except Exception as e:
+            messagebox.showerror("Archive Export Error", f"Failed to export consultation ZIP bundle:\n\n{e}")
+            self.lbl_feedback.config(text=f"ZIP export error: {e}")
 
     def _load_clinic_branding(self) -> ClinicBranding:
         settings_file = Path("clinic_settings.json")
@@ -1763,9 +1966,15 @@ class HealthcareASRApp:
                 pass
 
         self.current_record = None
+        self.current_audio_path = None
         self.recorder = None
         self.recording_start_time = None
         self.is_busy = False
+        self.latest_peak = 0.0
+        self.latest_rms = 0.0
+        self.displayed_vu_level = 0.0
+        self.canvas_vu.coords(self.vu_bar_id, 0, 0, 0, 12)
+        self.lbl_vu_text.config(text="-- dB", fg="#64748B")
 
         self.btn_start.config(state=tk.NORMAL)
         self.btn_stop.config(state=tk.DISABLED)
@@ -1774,6 +1983,9 @@ class HealthcareASRApp:
         self.btn_export.config(state=tk.DISABLED)
         self.btn_export_html.config(state=tk.DISABLED)
         self.btn_export_pdf.config(state=tk.DISABLED)
+        self.btn_export_fhir.config(state=tk.DISABLED)
+        self.btn_export_zip.config(state=tk.DISABLED)
+        self.btn_sign_off.config(state=tk.DISABLED)
 
         self.lbl_record_status.config(text="● Audio: Idle", fg="#475569")
         self.lbl_asr_status.config(text="Model: Ready")
