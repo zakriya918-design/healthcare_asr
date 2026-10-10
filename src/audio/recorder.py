@@ -56,7 +56,11 @@ class AudioRecorder:
         self.channels = channels
         self.device = device
         self.max_duration_seconds = max_duration_seconds
-        self.recordings_dir = recordings_dir or Path(r"C:\Users\Aziza\HEALTHCARE_ASR\recordings")
+        if recordings_dir is None:
+            from src.utils.paths import get_recordings_dir
+            self.recordings_dir = get_recordings_dir()
+        else:
+            self.recordings_dir = Path(recordings_dir)
         self.recordings_dir.mkdir(parents=True, exist_ok=True)
         self.level_callback = level_callback
 

@@ -102,10 +102,20 @@ class WhisperTranscriber:
 
         try:
             from faster_whisper import WhisperModel
+            from src.utils.paths import get_models_dir
 
-            root_dir = str(self.download_root) if self.download_root else None
+            # Check for pre-bundled offline model folder
+            models_dir = get_models_dir()
+            local_candidate = models_dir / self.model_size
+            if local_candidate.is_dir() and (local_candidate / "model.bin").is_file():
+                model_target = str(local_candidate)
+                logger.info(f"Loading Faster-Whisper from pre-bundled offline directory: {model_target}")
+            else:
+                model_target = self.model_size
+
+            root_dir = str(self.download_root) if self.download_root else str(models_dir)
             self._model = WhisperModel(
-                model_size_or_path=self.model_size,
+                model_size_or_path=model_target,
                 device=self.device,
                 compute_type=self.compute_type,
                 download_root=root_dir

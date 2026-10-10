@@ -16,9 +16,12 @@ from src.models.patient_record import (
 )
 
 
+from src.utils.paths import get_synthetic_wav_path
+
+
 def test_full_pipeline_end_to_end(tmp_path):
     # 1. Synthetic Consultation Audio
-    audio_file = Path(r"C:\Users\Aziza\HEALTHCARE_ASR\recordings\synthetic_consultation_test.wav")
+    audio_file = get_synthetic_wav_path()
     assert audio_file.is_file(), f"Synthetic audio fixture missing at {audio_file}"
 
     # 2. Actual Faster-Whisper transcription (tiny.en, CPU, int8)

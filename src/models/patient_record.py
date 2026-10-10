@@ -373,7 +373,8 @@ class ConsultationRecord:
     def save_json(self, output_dir: Optional[Union[str, Path]] = None) -> Path:
         """Atomically saves consultation record to JSON without overwriting existing files."""
         if output_dir is None:
-            output_path = Path(r"C:\Users\Aziza\HEALTHCARE_ASR\output")
+            from src.utils.paths import get_output_dir
+            output_path = get_output_dir()
         else:
             output_path = Path(output_dir)
 

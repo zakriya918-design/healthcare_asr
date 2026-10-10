@@ -45,14 +45,15 @@ from src.audio.diagnostics import run_audio_diagnostic, AudioDiagnosticResult
 from src.processing.icd10_coding import suggest_icd10_codes, ICD10CodeMatch, format_icd10_coding_block
 from src.processing.archive_exporter import export_consultation_zip, verify_consultation_zip
 from src.processing.fhir_exporter import export_fhir_json, validate_fhir_bundle
+from src.utils.paths import get_synthetic_wav_path, get_output_dir, get_recordings_dir
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("HealthcareASR")
 
 APP_TITLE = "Healthcare AI Clinical Documentation Assistant"
-SYNTHETIC_WAV_PATH = Path(r"C:\Users\Aziza\HEALTHCARE_ASR\recordings\synthetic_consultation_test.wav")
-OUTPUT_DIR = Path(r"C:\Users\Aziza\HEALTHCARE_ASR\output")
-RECORDINGS_DIR = Path(r"C:\Users\Aziza\HEALTHCARE_ASR\recordings")
+SYNTHETIC_WAV_PATH = get_synthetic_wav_path()
+OUTPUT_DIR = get_output_dir()
+RECORDINGS_DIR = get_recordings_dir()
 
 
 class HealthcareASRApp:

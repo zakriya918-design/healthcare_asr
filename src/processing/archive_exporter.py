@@ -61,7 +61,8 @@ def export_consultation_zip(
         Path to the generated ZIP archive.
     """
     if output_dir is None:
-        target_dir = Path(r"C:\Users\Aziza\HEALTHCARE_ASR\output")
+        from src.utils.paths import get_output_dir
+        target_dir = get_output_dir()
     else:
         target_dir = Path(output_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
