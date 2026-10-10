@@ -1,4 +1,4 @@
-﻿# Healthcare AI Clinical Documentation Assistant (Healthcare ASR)
+# Healthcare AI Clinical Documentation Assistant (Healthcare ASR)
 
 A lightweight, reliable, offline-first desktop application designed to transcribe clinical consultations, estimate conversational speaker roles, extract structured medical entities (symptoms, vital signs, medications, allergies, diagnoses, and treatment plans) with explicit negation and uncertainty preservation, compile formatted SOAP notes, and persist structured consultation records to disk.
 
@@ -99,9 +99,25 @@ If you ever need to reinstall dependencies into the virtual environment:
 
 ## 4. Running the Application
 
-Launch the desktop user interface by running:
+You can run the application in three convenient modes:
+
+### Mode A: Streamlit Interactive Web Application (Browser-Based)
+Launch the modern, responsive web app featuring real-time dialogue cards, acoustic diagnostics, interactive SOAP editor, ICD-10 suggestions, and one-click HL7 FHIR / PDF / ZIP downloads:
 ```powershell
-& "C:\Users\Aziza\HEALTHCARE_ASR\.venv\Scripts\python.exe" app.py
+& "c:\Users\Aziza\Desktop\project\.venv\Scripts\python.exe" -m streamlit run streamlit_app.py
+```
+*Open your web browser at `http://localhost:8501`.*
+
+### Mode B: Standalone Desktop Executable (Zero Python Required)
+For air-gapped hospital workstations:
+```powershell
+.\dist\HealthcareASR\HealthcareASR.exe
+```
+
+### Mode C: Tkinter Desktop Application
+Launch the classic desktop GUI:
+```powershell
+& "c:\Users\Aziza\Desktop\project\.venv\Scripts\python.exe" app.py
 ```
 
 ### How to Use the Interface:
@@ -117,19 +133,18 @@ Launch the desktop user interface by running:
    - **Tab 1 (Transcript & Speakers):** View recognized text broken down by utterance timestamps and estimated Doctor/Patient roles.
    - **Tab 2 (Extracted Clinical Data):** View detected symptoms, vital signs, medications, allergies, diagnoses, and unclassified phrases.
    - **Tab 3 (SOAP Clinical Note):** Review the draft SOAP note with clinical warnings and missing information callouts.
-   - **Tab 4 (Structured JSON Record):** Inspect the raw schema v1.0 JSON representation.
-5. **Exporting Data:**
-   - Click **💾 Export JSON Record** to save the structured record to the `output/` directory.
-6. **Starting a New Patient Encounter:**
+   - **Tab 4 (ICD-10 Diagnostic Coding):** Review suggested ICD-10-CM codes with confidence scores.
+   - **Tab 5 (Interoperability & Exports):** Download HTML, PDF, FHIR R4 JSON, and ZIP packages with SHA-256 manifests.
+5. **Starting a New Patient Encounter:**
    - Click **🔄 New / Clear** to reset the interface.
 
 ---
 
 ## 5. Running the Automated Test Suite
 
-To run all 49 automated unit, integration, and GUI tests:
+To run all 112 automated unit, integration, Streamlit, and GUI tests:
 ```powershell
-& "C:\Users\Aziza\HEALTHCARE_ASR\.venv\Scripts\python.exe" -m pytest -v
+& "c:\Users\Aziza\Desktop\project\.venv\Scripts\python.exe" -m pytest -v
 ```
 
 To run a specific test file:
