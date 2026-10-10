@@ -7,3 +7,4 @@ soundfile==0.14.0
 reportlab==5.0.1
 pytest==9.1.1
 streamlit==1.65.0
+fastapi==0.143.0

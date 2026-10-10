@@ -4,7 +4,7 @@
 **Location:** `c:\Users\Aziza\Desktop\project` / `C:\Users\Aziza\HEALTHCARE_ASR`  
 **Current Status:** Fully Built, Tested, and Operational  
 **Last Verified:** October 10, 2026  
-**Test Suite Pass Rate:** **112 / 112 tests passed (100%)**
+**Test Suite Pass Rate:** **123 / 123 tests passed (100%)**
 
 ---
 
@@ -44,6 +44,8 @@ All components run locally on Windows (CPU-compatible inference with Faster-Whis
 | **Phase 22: Universal Cross-Platform Path Portability** | Completed | `src/utils/paths.py`: Replaced all hardcoded system paths with dynamic, environment-aware resolvers (`get_base_data_dir()`, `get_output_dir()`, `get_recordings_dir()`, `get_models_dir()`). Supports `HEALTHCARE_ASR_DATA_DIR` environment override. |
 | **Phase 23: Offline Model Bundling & Packaging** | Completed | `src/audio/asr.py`, `scripts/download_models.py`, `scripts/build_exe.py`: Pre-bundled offline model loading support from `./models`, download script for air-gapped clinical deployments, and PyInstaller standalone build configuration. |
 | **Phase 24: Streamlit Web Application Deployment** | Completed | `streamlit_app.py`, `tests/test_streamlit_app.py`: High-performance, reactive browser-based clinical web interface with Faster-Whisper ASR, dialogue cards, clinical NLP entity extraction, interactive SOAP editor, clinician sign-off workflow, ICD-10 suggestions, multi-format exports (HTML, PDF, ZIP with SHA-256 manifest, HL7 FHIR R4), and past encounter browser. |
+| **Phase 25: Audio Noise Filtering & Speech Enhancement** | Completed | `src/audio/enhancement.py`, `tests/test_audio_enhancement.py`: Pure-numpy DSP pipeline featuring Hann-skirt speech bandpass filtering (80–7500 Hz), Berouti spectral subtraction noise gating, speech AGC volume normalization, and soft peak limiting. |
+| **Phase 26: FastEHR REST API & Interoperability Server** | Completed | `src/api/server.py`, `tests/test_api_server.py`: Production-ready FastAPI/Uvicorn HTTP service for hospital EMR/EHR systems to ingest audio or transcripts, retrieve structured SOAP notes, extract ICD-10 codes, sign off encounters, and download HL7 FHIR R4 document bundles. |
 
 ---
 
@@ -55,15 +57,17 @@ All components run locally on Windows (CPU-compatible inference with Faster-Whis
 ```
 
 ### Results Summary
-- **Total Tests Collected:** 112
-- **Tests Passed:** 112
+- **Total Tests Collected:** 123
+- **Tests Passed:** 123
 - **Tests Failed:** 0
 - **Pass Rate:** **100%**
-- **Execution Time:** ~11.2 seconds
+- **Execution Time:** ~10.6 seconds
 
-### Breakdown by Module (18 Suites)
-1. `tests/test_streamlit_app.py` — **3 passed**: Initial clean load verification, full clinical tabs rendering with populated encounter record, and clinician attestation sign-off transition to `REVIEWED_APPROVED`.
-2. `tests/test_paths.py` — **5 passed**: Project root discovery, default base directory resolution, environment variable overrides, subdirectory creation, synthetic WAV resolution.
+### Breakdown by Module (20 Suites)
+1. `tests/test_api_server.py` — **6 passed**: Root status, health inspection, text pipeline ingestion, past encounter search, acoustic diagnostic upload, and audio enhancement endpoint.
+2. `tests/test_audio_enhancement.py` — **5 passed**: Bandpass rumble/hiss attenuation, spectral subtraction noise energy reduction, AGC volume boosting without clipping, empty array safety, and full file enhancement.
+3. `tests/test_streamlit_app.py` — **3 passed**: Initial clean load verification, full clinical tabs rendering with populated encounter record, and clinician attestation sign-off transition to `REVIEWED_APPROVED`.
+4. `tests/test_paths.py` — **5 passed**: Project root discovery, default base directory resolution, environment variable overrides, subdirectory creation, synthetic WAV resolution.
 2. `tests/test_archive_exporter.py` — **6 passed**: SHA-256 hash calculation, ZIP archive bundling without audio, bundle with audio WAV, tamper detection with modified bytes, missing manifest rejection, nonexistent file handling.
 3. `tests/test_fhir_exporter.py` — **8 passed**: FHIR ID sanitization, FHIR document bundle structure, preliminary draft vs approved final status, negated finding mapping to `refuted`, LOINC vital signs observations, medication statements, allergy intolerances, bundle schema validation.
 4. `tests/test_gui.py` — **13 passed**: Tkinter initialization, worker queue polling, error handling, consultation reset, model switcher, digital sign-off, JSON opening, mic device switcher, search browser window, audio diagnostic modal, ICD-10 tab rendering, live VU meter updates and decay, ZIP & FHIR export GUI controls.

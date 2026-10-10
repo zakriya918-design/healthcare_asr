@@ -329,6 +329,8 @@ class ConsultationRecord:
     extracted_info: ExtractedClinicalInformation = field(default_factory=ExtractedClinicalInformation)
     soap_note: SOAPNote = field(default_factory=SOAPNote)
     review_status: ReviewStatus = ReviewStatus.DRAFT_PENDING_REVIEW
+    signed_by: Optional[str] = None
+    signed_at: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -341,6 +343,8 @@ class ConsultationRecord:
             "extracted_info": self.extracted_info.to_dict(),
             "soap_note": self.soap_note.to_dict(),
             "review_status": self.review_status.value if isinstance(self.review_status, ReviewStatus) else str(self.review_status),
+            "signed_by": self.signed_by,
+            "signed_at": self.signed_at,
         }
 
     def to_json(self, indent: int = 2) -> str:
@@ -363,6 +367,8 @@ class ConsultationRecord:
             extracted_info=ExtractedClinicalInformation.from_dict(data.get("extracted_info", {})),
             soap_note=SOAPNote.from_dict(data.get("soap_note", {})),
             review_status=review_status,
+            signed_by=data.get("signed_by"),
+            signed_at=data.get("signed_at"),
         )
 
     @classmethod

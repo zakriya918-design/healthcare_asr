@@ -248,6 +248,11 @@ with st.sidebar:
 
     device_info = "⚡ CPU (int8 Quantized, 100% Offline)"
     st.info(f"**Inference:** {device_info}")
+    enhance_audio_toggle = st.checkbox(
+        "🔊 Speech Enhancement & Noise Gate",
+        value=True,
+        help="Applies digital bandpass filtering and spectral subtraction noise reduction to improve ASR accuracy on noisy audio.",
+    )
 
     st.markdown("---")
     st.subheader("🏥 Clinic Header & Letterhead")
@@ -307,7 +312,11 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # Helper: Processing Routine
 # ---------------------------------------------------------------------------
-def execute_clinical_pipeline(audio_path: Optional[Path], raw_text_input: Optional[str] = None):
+def execute_clinical_pipeline(
+    audio_path: Optional[Path],
+    raw_text_input: Optional[str] = None,
+    enhance_audio: bool = False,
+):
     with st.spinner("Transcribing audio & executing medical NLP engines..."):
         progress_bar = st.progress(10)
 
@@ -315,7 +324,10 @@ def execute_clinical_pipeline(audio_path: Optional[Path], raw_text_input: Option
         if audio_path and audio_path.exists():
             transcriber = get_cached_transcriber(st.session_state.transcriber_model)
             progress_bar.progress(30)
-            raw_transcript, raw_segments = transcriber.transcribe_file(audio_path)
+            raw_transcript, raw_segments = transcriber.transcribe_file(
+                audio_path,
+                enhance_audio=enhance_audio,
+            )
             st.session_state.audio_path = str(audio_path)
         else:
             raw_transcript = raw_text_input or ""
@@ -377,7 +389,7 @@ if process_btn:
         if not synth_path.exists():
             from src.audio.diagnostics import SyntheticAudioGenerator
             SyntheticAudioGenerator.generate_synthetic_consultation_wav(synth_path)
-        execute_clinical_pipeline(audio_path=synth_path)
+        execute_clinical_pipeline(audio_path=synth_path, enhance_audio=enhance_audio_toggle)
         st.success("Synthetic consultation transcribed and processed successfully!")
         st.rerun()
 
@@ -390,7 +402,7 @@ if process_btn:
             temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             temp_audio.write(uploaded_audio.read())
             temp_audio.close()
-            execute_clinical_pipeline(audio_path=Path(temp_audio.name))
+            execute_clinical_pipeline(audio_path=Path(temp_audio.name), enhance_audio=enhance_audio_toggle)
             st.success(f"Uploaded audio '{uploaded_audio.name}' processed successfully!")
             st.rerun()
 

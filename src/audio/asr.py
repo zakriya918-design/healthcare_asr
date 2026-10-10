@@ -133,15 +133,22 @@ class WhisperTranscriber:
     def transcribe_file(
         self,
         audio_path: Union[str, Path],
-        progress_callback: Optional[Callable[[str], None]] = None
+        progress_callback: Optional[Callable[[str], None]] = None,
+        enhance_audio: bool = False
     ) -> Tuple[str, List[TranscriptSegment]]:
         """
         Transcribes an audio file (WAV, FLAC, etc.) into full text and structured segments.
+        Optionally applies speech enhancement / noise gating DSP prior to ASR.
         Returns:
             (full_transcript_text, list_of_TranscriptSegment)
         """
         # Load and validate waveform via soundfile
         audio_waveform = load_and_resample_audio(audio_path, target_sr=16000)
+
+        # Apply digital speech enhancement and noise filtering if enabled
+        if enhance_audio:
+            from src.audio.enhancement import enhance_audio_data
+            audio_waveform = enhance_audio_data(audio_waveform, sample_rate=16000)
 
         # Ensure model is loaded
         if self._model is None:

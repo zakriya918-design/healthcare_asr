@@ -120,6 +120,13 @@ Launch the classic desktop GUI:
 & "c:\Users\Aziza\Desktop\project\.venv\Scripts\python.exe" app.py
 ```
 
+### Mode D: FastEHR REST API & Interoperability Server
+Launch the local hospital EHR integration server with interactive Swagger UI:
+```powershell
+& "c:\Users\Aziza\Desktop\project\.venv\Scripts\python.exe" -m uvicorn src.api.server:app --port 8000
+```
+*Open interactive Swagger API documentation at `http://localhost:8000/docs`.*
+
 ### How to Use the Interface:
 1. **Live Microphone Recording:**
    - Click **🎙️ Start Recording** to begin capturing consultation audio.
@@ -142,7 +149,7 @@ Launch the classic desktop GUI:
 
 ## 5. Running the Automated Test Suite
 
-To run all 112 automated unit, integration, Streamlit, and GUI tests:
+To run all 123 automated unit, integration, Streamlit, DSP enhancement, and REST API tests:
 ```powershell
 & "c:\Users\Aziza\Desktop\project\.venv\Scripts\python.exe" -m pytest -v
 ```
