@@ -541,22 +541,61 @@ if not rec:
         unsafe_allow_html=True,
     )
 
-    # Quick Action Buttons
-    action_col1, action_col2, action_col3 = st.columns([1.5, 1.2, 1.2])
+    # Interactive Intake Action Cards
+    action_col1, action_col2, action_col3 = st.columns([1.2, 1.4, 1.4])
     with action_col1:
         st.markdown("#### ⚡ 1-Click Instant Demo")
+        st.caption("Pre-recorded medical encounter (Back pain consultation with doctor & patient dialogue).")
         if st.button("🚀 Run Synthetic Demo Encounter Now", type="primary", use_container_width=True, key="launch_demo_main"):
             with st.spinner("Processing synthetic back pain consultation with acoustic diarization & clinical NLP..."):
-                demo_rec = execute_clinical_pipeline(audio_source_type="demo", num_speakers=None)
-                if demo_rec:
-                    st.session_state.record = demo_rec
-                    st.rerun()
+                synth_path = get_synthetic_wav_path()
+                if not synth_path.exists():
+                    from src.audio.diagnostics import SyntheticAudioGenerator
+                    SyntheticAudioGenerator.generate_synthetic_consultation_wav(synth_path)
+                execute_clinical_pipeline(
+                    audio_path=synth_path,
+                    enhance_audio=False,
+                    num_speakers="auto"
+                )
+                st.rerun()
+
     with action_col2:
-        st.markdown("#### 🎙️ Live Recording")
-        st.info("Expand sidebar 👈, select **Record Microphone**, choose your input device, click **Start Recording**, and hit **Process**.")
+        st.markdown("#### 🎙️ Live Browser Recording")
+        st.caption("Record live encounter audio directly through your web browser:")
+        browser_audio = st.audio_input("Record Audio", key="main_browser_audio_rec", label_visibility="collapsed")
+        if browser_audio is not None:
+            if st.button("🚀 Process Recorded Consultation", type="primary", use_container_width=True, key="btn_proc_browser_audio"):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_rec:
+                    tmp_rec.write(browser_audio.read())
+                    tmp_rec_path = Path(tmp_rec.name)
+                execute_clinical_pipeline(
+                    audio_path=tmp_rec_path,
+                    enhance_audio=True,
+                    num_speakers="auto"
+                )
+                st.rerun()
+
     with action_col3:
-        st.markdown("#### 📁 File Upload")
-        st.info("Expand sidebar 👈, choose **Upload WAV / MP3 Audio File**, upload a consultation recording, and hit **Process**.")
+        st.markdown("#### 📁 Direct File Upload")
+        st.caption("Select a WAV, MP3, or M4A recording from your computer:")
+        main_uploaded_file = st.file_uploader(
+            "Upload Audio",
+            type=["wav", "mp3", "m4a", "ogg"],
+            key="main_direct_file_uploader",
+            label_visibility="collapsed"
+        )
+        if main_uploaded_file is not None:
+            if st.button("🚀 Process Uploaded Audio", type="primary", use_container_width=True, key="btn_proc_uploaded_audio"):
+                suffix = Path(main_uploaded_file.name).suffix or ".wav"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_up:
+                    tmp_up.write(main_uploaded_file.read())
+                    tmp_up_path = Path(tmp_up.name)
+                execute_clinical_pipeline(
+                    audio_path=tmp_up_path,
+                    enhance_audio=True,
+                    num_speakers="auto"
+                )
+                st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("### 🔄 End-to-End Clinical Documentation Workflow")
