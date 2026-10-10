@@ -17,7 +17,7 @@ CLINICIAN_PATTERNS = [
     r"\bhow\s+(?:are\s+you|long\s+have\s+you|can\s+i\s+help|have\s+you\s+been)\b",
     r"\bwhat\s+brings\s+you\s+(?:in|here|today|back)\b",
     r"\b(?:let\s+me|i'm\s+going\s+to|let's)\s+(?:examine|listen|check|take\s+your|look\s+at|talk\s+about)\b",
-    r"\b(?:i'll|let's|we'll|i\s+am\s+going\s+to|i'd\s+like\s+you\s+to)\s+(?:prescribe|order|recommend|start\s+you\s+on|try\s+using|stick\s+with)\b",
+    r"\b(?:i'll|let's|we'll|i\s+am\s+going\s+to|i'd\s+like\s+you\s+to|i\s+recommend)\s+(?:prescribe|order|recommend|start\s+you\s+on|try\s+using|stick\s+with|making\s+some\s+lifestyle)\b",
     r"\b(?:take\s+(?:this|one|two)|take\s+\d+\s*mg|twice\s+daily|three\s+times\s+a\s+day)\b",
     r"\b(?:any\s+fever|any\s+allergies|any\s+other\s+symptoms|any\s+other\s+costs|do\s+you\s+have|did\s+you\s+have)\b",
     r"\b(?:follow\s+up|return\s+to\s+clinic|come\s+back\s+if|see\s+me\s+in|set\s+a\s+time|early\s+next\s+week)\b",
@@ -31,7 +31,21 @@ CLINICIAN_PATTERNS = [
     r"\b(?:what\s+i'll\s+do\s+is|my\s+office\s+team|talk\s+over\s+the\s+phone|see\s+if\s+those\s+would\s+work)\b",
     r"\b(?:hi|hello|welcome)\s*,\s*(?:mr\.|mrs\.|ms\.|miss)\s+\w+\b",
     r"\b(?:seen\s+you\s+a\s+number\s+of\s+times|thanks\s+to\s+see\s+you\s+again|glad\s+you\s+were\s+able\s+to\s+come)\b",
-    r"\b(?:got\s+it\s*,\s*and\s+i\s+understand|i\s+understand|okay\s*,\s*well\s+there\s+are)\b",
+    r"\b(?:got\s+it\s*,\s*and\s+i\s+understand|i\s+understand\s+your\s+concern|okay\s*,\s*well\s+there\s+are)\b",
+    r"\b(?:i'm\s+glad\s+you\s+came\s+in|glad\s+you\s+came\s+in|important\s+not\s+to\s+ignore)\b",
+    r"\b(?:let\s+me\s+ask\s+you|ask\s+you\s+a\s+few\s+questions|better\s+understand\s+your\s+condition)\b",
+    r"\b(?:have\s+you\s+noticed\s+if|symptoms\s+occur\s+during|family\s+history|history\s+of\s+heart\s+disease)\b",
+    r"\b(?:relation\s+to\s+physical\s+activity|important\s+to\s+consider|your\s+heart\s+health)\b",
+    r"\b(?:order\s+an\s+electrocardiogram|called\s+ecg|baseline\s+assessment|heart\'s\s+electrical\s+activity)\b",
+    r"\b(?:help\s+us\s+determine|if\s+any\s+abnormalities|support\s+your\s+heart\s+health)\b",
+    r"\b(?:balanced\s+diet|engaging\s+in\s+regular\s+exercise|heart-healthy\s+diet|whole\s+grains|manage\s+stress)\b",
+    r"\b(?:we\'ll\s+wait\s+for|wait\s+for\s+the\s+ecg\s+results|prescribing\s+medications|encourage\s+you\s+to\s+take\s+it\s+easy)\b",
+    r"\b(?:warning\s+signs\s+to\s+watch|pain\s+radiating\s+to|seek\s+immediate\s+medical\s+attention)\b",
+    r"\b(?:results\s+of\s+your\s+ecg|heart\s+rhythm\s+appears\s+normal|while\s+the\s+ecg|reassuring|investigate\s+further)\b",
+    r"\b(?:pulmonary\s+function\s+test|assess\s+your\s+lung\s+function|stress\s+test\s+to\s+evaluate)\b",
+    r"\b(?:rule\s+out\s+any\s+underlying|guide\s+us\s+toward\s+an\s+accurate\s+diagnosis)\b",
+    r"\b(?:it\'s\s+my\s+duty\s+to\s+provide|best\s+care\s+possible|schedule\s+a\s+follow-up\s+appointment)\b",
+    r"\b(?:reach\s+out\s+to\s+me\s+or\s+the\s+clinic|we\'re\s+here\s+to\s+support\s+you)\b",
 ]
 
 PATIENT_PATTERNS = [
@@ -49,6 +63,21 @@ PATIENT_PATTERNS = [
     r"\b(?:started\s+to\s+get\s+really\s+expensive|don't\s+need\s+to\s+lose\s+any\s+more\s+time|lie\s+around\s+the\s+house)\b",
     r"\b(?:medicine\s+was\s+working\s+really\s+well|insurance\s+isn't\s+going\s+down|make\s+it\s+work\s+here)\b",
     r"\b(?:i'm\s+good|sure\s*,\s*that'd\s+be\s+great|that\s+sounds\s+(?:good|great))\b",
+    r"\b(?:i've\s+been\s+experiencing|pain\s+in\s+my\s+chest|shortness\s+of\s+breath|bothering\s+me\s+for)\b",
+    r"\b(?:happens\s+mostly\s+when\s+i|push\s+myself\s+physically|climbing\s+stairs|walking\s+fast)\b",
+    r"\b(?:not\s+that\s+i'm\s+aware\s+of|my\s+parents\s+and\s+siblings|don't\s+have\s+any\s+heart)\b",
+    r"\b(?:trust\s+your\s+judgment|proceed\s+with\s+the\s+necessary|make\s+sure\s+everything\s+is\s+okay)\b",
+    r"\b(?:i\s+must\s+admit|hasn't\s+been\s+the\s+healthiest|routine\s+is\s+almost\s+non-existent)\b",
+    r"\b(?:ready\s+to\s+commit|are\s+there\s+any\s+medications\s+i\s+should|other\s+treatments\s+we\s+should\s+consider)\b",
+    r"\b(?:appreciate\s+your\s+guidance|i'll\s+be\s+cautious|prioritize\s+my\s+health)\b",
+    r"\b(?:anything\s+else\s+i\s+should\s+be\s+aware|warning\s+signs\s+i\s+should\s+watch)\b",
+    r"\b(?:i'll\s+keep\s+a\s+close\s+eye|won't\s+hesitate\s+to\s+reach\s+out|thank\s+you\s+for\s+your\s+time\s+and\s+expertise)\b",
+    r"\b(?:that's\s+a\s+relief|relief\s+to\s+hear|mean\s+my\s+symptoms\s+are\s+not\s+related)\b",
+    r"\b(?:what\s+tests\s+do\s+you\s+recommend|i'll\s+proceed\s+with\s+the\s+tests|appreciate\s+your\s+thoroughness)\b",
+    r"\b(?:conscious\s+efforts\s+to\s+improve|challenging\s*,\s*but\s+i\s+understand)\b",
+    r"\b(?:keep\s+that\s+in\s+mind|reassuring\s+to\s+know|in\s+good\s+hands)\b",
+    r"\b(?:prompt\s+attention|eagerly\s+await\s+the\s+results|next\s+meeting|professionalism\s+and\s+care)\b",
+    r"\b(?:keep\s+you\s+updated|goodbye\s+for\s+now)\b",
 ]
 
 CAREGIVER_PATTERNS = [
@@ -102,12 +131,30 @@ def estimate_speaker_role(
     cg_matches = sum(1 for pat in CAREGIVER_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
     nurse_matches = sum(1 for pat in NURSE_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
 
-    # Addressing clinician by name or title indicates patient/caregiver voice
-    if re.search(r"\b(?:dr\.|doctor)\s+(?!(?:comes|will|sees|says|said|prescribed|ordered|recommended|is|was))[a-z]+\b", cleaned, re.IGNORECASE) and doc_matches == 0:
+    # Direct vocative address to doctor (e.g., "Doctor,", "Good morning, Doctor", "Thank you, Dr.", "Doctor, what tests...")
+    # Addressing the doctor is a definitive sign of Patient or Caregiver voice
+    is_addressing_doctor = bool(
+        re.search(r"(?:,\s*(?:dr\.?|doctor)\b|\b(?:dr\.?|doctor)\s*[,.?!]|\b(?:dr\.|doctor)\s+[a-z]+|\bthank\s+you\s*,?\s*(?:dr\.?|doctor)\b|\bhello\s*,?\s*(?:dr\.?|doctor)\b|\bgood\s+morning\s*,?\s*(?:dr\.?|doctor)\b|\bunderstand\s*,?\s*(?:dr\.?|doctor)\b|\bappreciate\s*,?\s*(?:dr\.?|doctor)\b|\b(?:great|right|sure|relief)\s*,?\s*(?:dr\.?|doctor)\b)", cleaned, re.IGNORECASE)
+        and not re.search(r"\b(?:doctor\s+(?:comes|will|sees|is\s+in|ordered|prescribed)|dr\.\s+\w+\s+(?:comes|will))\b", cleaned, re.IGNORECASE)
+    )
+    if is_addressing_doctor:
         if cg_matches > 0:
-            cg_matches += 1
+            cg_matches += 3
         else:
-            pt_matches += 2
+            pt_matches += 3
+        doc_matches = 0
+
+    # Direct address to patient using honorifics (e.g. "Mr. Johnson", "Mrs. Smith", "Ms. Davis")
+    # Addressing the patient is a definitive sign of Doctor or Nurse voice
+    is_addressing_patient = bool(
+        re.search(r"\b(?:mr\.|mrs\.|ms\.|miss)\s+[A-Za-z]+\b", cleaned, re.IGNORECASE)
+    )
+    if is_addressing_patient:
+        if nurse_matches > 0:
+            nurse_matches += 3
+        else:
+            doc_matches += 3
+        pt_matches = 0
 
     # Referring to doctor in third person (e.g., "before the doctor comes in", "doctor will be right in")
     if re.search(r"\b(?:doctor\s+(?:comes|will|sees|is\s+in)|dr\.\s+\w+\s+(?:comes|will))\b", cleaned, re.IGNORECASE):

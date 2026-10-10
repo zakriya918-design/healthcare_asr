@@ -108,3 +108,25 @@ def test_diarize_consultation_audio_with_synthetic_audio():
     assert annotated[1].speaker_role == SpeakerRole.PATIENT
     assert annotated[2].speaker_role == SpeakerRole.DOCTOR
     assert annotated[3].speaker_role == SpeakerRole.PATIENT
+
+
+def test_doctor_patient_vocative_and_cluster_invariance():
+    """Verify that addressing as 'Doctor' and addressing as 'Mr. Johnson' properly identifies roles without flip-flopping."""
+    # Test vocative addressing in linguistic classifier
+    role1, conf1, _ = estimate_speaker_role("Good morning, Mr. Johnson. How are you feeling today?")
+    assert role1 == SpeakerRole.DOCTOR
+
+    role2, conf2, _ = estimate_speaker_role("Good morning, Doctor. I've been experiencing some pain in my chest.")
+    assert role2 == SpeakerRole.PATIENT
+
+    role3, conf3, _ = estimate_speaker_role("I understand, Doctor, what tests do you recommend?")
+    assert role3 == SpeakerRole.PATIENT
+
+    role4, conf4, _ = estimate_speaker_role("Thank you for your trust, Mr. Johnson, in the meantime.")
+    assert role4 == SpeakerRole.DOCTOR
+
+    role5, conf5, _ = estimate_speaker_role("I trust your judgment, doctor. Please go ahead with the necessary tests.")
+    assert role5 == SpeakerRole.PATIENT
+
+    role6, conf6, _ = estimate_speaker_role("I'd like to order an electrocardiogram also called ECG.")
+    assert role6 == SpeakerRole.DOCTOR

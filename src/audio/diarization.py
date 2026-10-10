@@ -16,8 +16,16 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import soundfile as sf
 
+import itertools
 from src.models.patient_record import SpeakerRole, TranscriptSegment
-from src.processing.speaker_processor import estimate_speaker_role, process_transcript_segments
+from src.processing.speaker_processor import (
+    estimate_speaker_role,
+    process_transcript_segments,
+    PREFIX_DOCTOR_RE,
+    PREFIX_PATIENT_RE,
+    PREFIX_CAREGIVER_RE,
+    PREFIX_NURSE_RE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +271,19 @@ def diarize_consultation_audio(
     feature_matrix = np.array(feature_list)
     cluster_labels = cluster_segments_by_voice(feature_matrix, num_speakers=num_speakers)
     unique_clusters = list(sorted(np.unique(cluster_labels)))
-    k = len(unique_clusters)
+
+    # Micro-cluster pruning: If K >= 3 and some clusters are tiny outliers (< 8% of segments),
+    # reassign them to the closest major centroid to prevent spurious speaker tags in 2-person dialogues
+    if len(unique_clusters) >= 3:
+        counts = {c: int(np.sum(cluster_labels == c)) for c in unique_clusters}
+        major_clusters = [c for c in unique_clusters if counts[c] >= max(3, int(0.08 * len(cluster_labels)))]
+        if len(major_clusters) >= 2 and len(major_clusters) < len(unique_clusters):
+            centroids = {c: np.mean(feature_matrix[cluster_labels == c], axis=0) for c in major_clusters}
+            for i in range(len(cluster_labels)):
+                if cluster_labels[i] not in major_clusters:
+                    dists = {mc: float(np.linalg.norm(feature_matrix[i] - centroids[mc])) for mc in major_clusters}
+                    cluster_labels[i] = min(dists.keys(), key=lambda mc: dists[mc])
+            unique_clusters = list(sorted(np.unique(cluster_labels)))
 
     # Map cluster assignments back to segments
     seg_clusters: Dict[int, int] = {}
@@ -284,29 +304,27 @@ def diarize_consultation_audio(
     for idx, seg in enumerate(segments):
         role, conf, _ = estimate_speaker_role(seg.text)
         cluster = seg_clusters.get(idx)
-        if cluster is not None and role in cluster_evidence[cluster] and conf >= 0.50:
+        if cluster is not None and role in cluster_evidence[cluster] and conf >= 0.40:
             cluster_evidence[cluster][role] += conf
 
-    # Assign distinct roles to clusters greedily based on highest confidence evidence
-    cluster_role_map: Dict[int, SpeakerRole] = {}
-    assigned_roles = set()
+    # Global optimal assignment of unique clusters to distinct roles
+    role_candidates = [SpeakerRole.DOCTOR, SpeakerRole.PATIENT, SpeakerRole.CAREGIVER, SpeakerRole.NURSE]
+    k_clusters = len(unique_clusters)
+    best_mapping = {}
+    best_score = -1.0
 
-    for role_candidate in [SpeakerRole.DOCTOR, SpeakerRole.PATIENT, SpeakerRole.CAREGIVER, SpeakerRole.NURSE]:
-        best_cluster = None
-        best_val = -1.0
-        for c in unique_clusters:
-            if c not in cluster_role_map and cluster_evidence[c][role_candidate] > best_val:
-                best_val = cluster_evidence[c][role_candidate]
-                best_cluster = c
+    for perm in itertools.permutations(role_candidates, k_clusters):
+        current_score = sum(cluster_evidence[c][role] for c, role in zip(unique_clusters, perm))
+        if current_score > best_score:
+            best_score = current_score
+            best_mapping = {c: role for c, role in zip(unique_clusters, perm)}
 
-        if best_cluster is not None and best_val > 0.5:
-            cluster_role_map[best_cluster] = role_candidate
-            assigned_roles.add(role_candidate)
+    cluster_role_map = best_mapping
 
-    # Default fallback for unassigned clusters
+    # Ensure Doctor and Patient are prioritized if unassigned
+    assigned_roles = set(cluster_role_map.values())
     for c in unique_clusters:
         if c not in cluster_role_map:
-            # If Doctor or Patient not assigned, fallback appropriately
             if SpeakerRole.DOCTOR not in assigned_roles:
                 cluster_role_map[c] = SpeakerRole.DOCTOR
                 assigned_roles.add(SpeakerRole.DOCTOR)
@@ -319,7 +337,7 @@ def diarize_consultation_audio(
             else:
                 cluster_role_map[c] = SpeakerRole.NURSE
 
-    # Annotate all segments with speaker_id and fused speaker_role
+    # Annotate all segments consistently with physical speaker_id and assigned acoustic role
     for idx, seg in enumerate(segments):
         cluster = seg_clusters.get(idx)
         ling_role, ling_conf, ling_reason = estimate_speaker_role(seg.text)
@@ -328,25 +346,20 @@ def diarize_consultation_audio(
             seg.speaker_id = f"Speaker {cluster + 1}"
             acoustic_role = cluster_role_map[cluster]
 
-            if ling_role == acoustic_role and ling_role != SpeakerRole.UNKNOWN:
-                seg.speaker_role = acoustic_role
-                seg.role_confidence = min(0.95, max(ling_conf + 0.15, 0.85))
-                seg.speaker_reason = f"Acoustic {seg.speaker_id} voiceprint & linguistic agreement ({ling_reason})"
-            elif ling_conf >= 0.85:
-                # Strong explicit label (e.g. prefix "Doctor:", "Patient:") takes precedence
+            # Explicit prefixes typed by user ("Doctor:", "Patient:", etc.) take highest precedence
+            if ling_conf >= 0.95 and (PREFIX_DOCTOR_RE.match(seg.text) or PREFIX_PATIENT_RE.match(seg.text) or PREFIX_CAREGIVER_RE.match(seg.text) or PREFIX_NURSE_RE.match(seg.text)):
                 seg.speaker_role = ling_role
                 seg.role_confidence = ling_conf
                 seg.speaker_reason = ling_reason
             else:
-                # Acoustic voice cluster resolves the utterance
+                # Acoustic voice cluster is the invariant ground truth for the speaker
                 seg.speaker_role = acoustic_role
-                seg.role_confidence = 0.78
-                seg.speaker_reason = f"Acoustic {seg.speaker_id} voiceprint mapped to {acoustic_role.value.lower()}"
+                seg.role_confidence = 0.88
+                seg.speaker_reason = f"Acoustic {seg.speaker_id} voice cluster mapped to {acoustic_role.value.lower()}"
         else:
             seg.speaker_id = ling_role.value if ling_role != SpeakerRole.UNKNOWN else "Speaker"
             seg.speaker_role = ling_role
             seg.role_confidence = ling_conf
             seg.speaker_reason = ling_reason
 
-    # Final pass: Contextual continuity smoothing
-    return process_transcript_segments(segments)
+    return segments
