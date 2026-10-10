@@ -1,0 +1,13 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Source code files
+*.py text eol=crlf
+*.md text eol=crlf
+*.txt text eol=crlf
+*.json text eol=crlf
+
+# Audio files (binary)
+*.wav binary
+*.mp3 binary
+*.flac binary

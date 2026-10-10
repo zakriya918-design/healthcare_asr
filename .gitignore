@@ -1,0 +1,46 @@
+# Python Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Audio Recordings (Strict Privacy: Never commit patient audio)
+recordings/*
+!recordings/.gitkeep
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg
+
+# Clinical Consultation Outputs (Strict Privacy: Never commit patient records)
+output/*
+!output/.gitkeep
+output/*.json
+
+# Downloaded ASR Model Weights & Caches
+models_cache/
+.cache/
+huggingface/
+assets/models/
+
+# IDE & Editor Temporary Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Environment & Secrets
+.env
+*.local
