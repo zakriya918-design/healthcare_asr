@@ -66,7 +66,7 @@ ICD10_DATABASE: List[Tuple[str, str, List[str]]] = [
     ("J02.9", "Acute pharyngitis, unspecified", ["pharyngitis", "sore throat", "acute pharyngitis"]),
 
     # Musculoskeletal & Connective
-    ("M54.50", "Low back pain, unspecified", ["low back pain", "lower back pain", "lumbago", "lumbar back pain"]),
+    ("M54.50", "Low back pain, unspecified", ["low back pain", "lower back pain", "lumbago", "lumbar back pain", "back pain", "chronic back pain", "recurrent back pain", "backache"]),
     ("M54.2", "Cervicalgia (Neck pain)", ["neck pain", "cervicalgia", "cervical spine pain"]),
     ("M19.90", "Unspecified osteoarthritis, unspecified site", ["osteoarthritis", "oa", "degenerative joint disease"]),
     ("M77.9", "Enthesopathy, unspecified (Tendinitis)", ["tendinitis", "tendonitis", "tendinopathy"]),

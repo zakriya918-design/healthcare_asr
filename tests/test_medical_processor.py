@@ -194,3 +194,36 @@ def test_expanded_lexicons():
     med_names = [m.name.lower() for m in info.medications]
     assert "tramadol" in med_names
     assert "furosemide" in med_names
+
+
+def test_back_pain_consultation_extraction_and_phonetic_normalization():
+    transcript = (
+        "Well, my back's been hurting again. "
+        "Ever since I got hurt on the job three years ago. "
+        "I get reoccurring episodes of back pain. "
+        "In the past we had you on some tram at all because physical therapy alone was slow. "
+        "Try using a heating pad for your back pain. "
+        "There are some alternative therapies like yoga or Tai Chi classes or meditation therapies. "
+        "Let's set a time early next week where we can talk over the phone."
+    )
+    info = process_clinical_information(transcript)
+    symptom_names = [s.name for s in info.symptoms]
+    assert "back pain" in symptom_names
+
+    cond_names = [c.name for c in info.existing_conditions]
+    assert "chronic back pain" in cond_names
+
+    hist_names = [h.name for h in info.relevant_history]
+    assert "work-related injury" in hist_names
+
+    med_names = [m.name for m in info.medications]
+    assert "Tramadol" in med_names
+    tramadol_med = next(m for m in info.medications if m.name == "Tramadol")
+    assert tramadol_med.is_current_plan is False
+
+    plan_names = [p.name for p in info.treatment_plans]
+    assert "Physical Therapy" in plan_names
+    assert "Heating Pad" in plan_names
+    assert "Yoga" in plan_names
+
+    assert len(info.advice_followup) >= 1

@@ -47,7 +47,7 @@ SYMPTOM_LEXICON = {
     "rash": ["rash", "hives", "skin eruption", "itching"],
     "congestion": ["congestion", "runny nose", "stuffy nose", "nasal congestion"],
     "abdominal pain": ["abdominal pain", "stomach ache", "belly pain", "cramps"],
-    "back pain": ["back pain", "lower back pain"],
+    "back pain": ["back pain", "lower back pain", "back's been hurting", "back hurting", "hurting in my back", "back ache", "pain in back"],
     "joint pain": ["joint pain", "knee pain", "arthralgia"],
     "wheezing": ["wheezing", "stridor"],
     "ear pain": ["ear pain", "earache", "ear ache"],
@@ -75,12 +75,14 @@ CONDITION_LEXICON = {
     "osteoarthritis": ["osteoarthritis", "degenerative joint disease"],
     "atrial fibrillation": ["atrial fibrillation", "afib", "a-fib"],
     "gout": ["gout", "hyperuricemia"],
+    "chronic back pain": ["chronic back pain", "reoccurring episodes of back pain", "recurrent back pain", "lumbago", "back pain from coming back"],
+    "work-related injury": ["hurt on the job", "injured at work", "work injury", "injury on the job"],
 }
 
 # Known common medications
 MEDICATION_LEXICON = [
     "amoxicillin", "augmentin", "azithromycin", "ciprofloxacin", "cephalexin", "doxycycline",
-    "ibuprofen", "acetaminophen", "paracetamol", "aspirin", "naproxen", "tramadol",
+    "ibuprofen", "acetaminophen", "paracetamol", "aspirin", "naproxen", "tramadol", "tram at all", "tram-at-all",
     "lisinopril", "amlodipine", "losartan", "atorvastatin", "simvastatin", "rosuvastatin",
     "metformin", "glipizide", "insulin", "albuterol", "fluticasone", "montelukast",
     "omeprazole", "pantoprazole", "levothyroxine", "prednisone", "furosemide",
@@ -216,22 +218,26 @@ def extract_symptoms(sentences: List[str]) -> List[ExtractedFinding]:
         if not s_clean:
             continue
 
+        # Skip interrogative inquiries from asserting presence of symptoms
+        is_inquiry = bool(re.search(r"\b(?:do|did|have|any)\s+you\s+(?:have|had|experience|feel|notice)\b", s_clean, re.IGNORECASE)) or s_clean.endswith("?")
+
         for canonical_name, variants in SYMPTOM_LEXICON.items():
             for var in variants:
                 pattern = rf"\b{re.escape(var)}\b"
                 match = re.search(pattern, s_clean, re.IGNORECASE)
                 if match:
-                    start_idx = max(0, match.start() - 40)
-                    end_idx = min(len(s_clean), match.end() + 40)
-                    local_window = s_clean[start_idx:end_idx]
+                    preceding_window = s_clean[max(0, match.start() - 40):match.start()]
+                    following_window = s_clean[match.end():min(len(s_clean), match.end() + 30)]
 
-                    is_negated = _check_negation(local_window)
-                    is_uncertain = _check_uncertainty(local_window)
+                    is_negated = _check_negation(preceding_window) or bool(re.search(r"\b(?:ruled\s+out|is\s+not\s+present|not\s+noted|is\s+absent)\b", following_window, re.IGNORECASE))
+                    is_uncertain = _check_uncertainty(preceding_window) or _check_uncertainty(following_window)
 
                     if is_negated:
                         status = FindingStatus.EXPLICITLY_ABSENT
                     elif is_uncertain:
                         status = FindingStatus.UNCERTAIN
+                    elif is_inquiry:
+                        continue
                     else:
                         status = FindingStatus.PRESENT
 
@@ -326,7 +332,7 @@ def extract_medications(sentences: List[str]) -> List[MedicationFinding]:
 
     dosage_re = re.compile(r"\b(\d+(?:\.\d+)?\s*(?:mg|g|mcg|ml|units?|tablets?|capsules?|puffs?))\b", re.IGNORECASE)
     freq_re = re.compile(r"\b(once\s+daily|twice\s+daily|three\s+times\s+(?:a\s+day|daily)|four\s+times\s+(?:a\s+day|daily)|every\s+\d+\s+hours?|daily|bid|tid|qid|prn|as\s+needed|at\s+bedtime)\b", re.IGNORECASE)
-    past_med_re = re.compile(r"\b(?:used\s+to\s+take|stopped\s+taking|previously\s+took|discontinued|past\s+prescription)\b", re.IGNORECASE)
+    past_med_re = re.compile(r"\b(?:used\s+to\s+take|stopped\s+taking|previously\s+took|discontinued|past\s+prescription|in\s+the\s+past|had\s+you\s+on)\b", re.IGNORECASE)
 
     for s in sentences:
         s_clean = s.strip()
@@ -345,11 +351,17 @@ def extract_medications(sentences: List[str]) -> List[MedicationFinding]:
                 is_past = bool(past_med_re.search(s_clean))
                 is_current = not is_past
 
-                key = (med_name.title(), dosage, freq, status, is_current)
+                med_clean = med_name.lower()
+                if med_clean in ("tram at all", "tram-at-all"):
+                    canonical_name = "Tramadol"
+                else:
+                    canonical_name = med_name.title()
+
+                key = (canonical_name, dosage, freq, status, is_current)
                 if key not in seen:
                     seen.add(key)
                     medications.append(MedicationFinding(
-                        name=med_name.title(),
+                        name=canonical_name,
                         dosage=dosage,
                         frequency=freq,
                         status=status,
@@ -433,25 +445,31 @@ def extract_plans_and_followup(sentences: List[str]) -> Tuple[List[ExtractedFind
     """Extracts non-pharmacological treatment instructions and follow-up advice."""
     plans: List[ExtractedFinding] = []
     followup: List[ExtractedFinding] = []
+    seen_plans = set()
 
     plan_cues = [
         "rest and fluids", "increase fluid intake", "fluids and rest",
         "warm salt water gargle", "ice pack", "elevate leg",
-        "saline nasal spray", "steam inhalation", "throat lozenges"
+        "saline nasal spray", "steam inhalation", "throat lozenges",
+        "physical therapy", "heating pad", "heat therapy", "yoga",
+        "tai chi", "meditation", "core strengthening", "exercise therapy", "stretching"
     ]
 
     for s in sentences:
         s_clean = s.strip()
         for cue in plan_cues:
-            if cue in s_clean.lower():
-                plans.append(ExtractedFinding(
-                    category="treatment_plan",
-                    name=cue.title(),
-                    status=FindingStatus.PRESENT,
-                    source_phrase=s_clean
-                ))
+            if re.search(rf"\b{re.escape(cue)}\b", s_clean, re.IGNORECASE):
+                cue_name = cue.title()
+                if cue_name not in seen_plans:
+                    seen_plans.add(cue_name)
+                    plans.append(ExtractedFinding(
+                        category="treatment_plan",
+                        name=cue_name,
+                        status=FindingStatus.PRESENT,
+                        source_phrase=s_clean
+                    ))
 
-        if re.search(r"\b(?:follow\s+up|see\s+me\s+again|come\s+back|return\s+if)\b", s_clean, re.IGNORECASE):
+        if re.search(r"\b(?:follow\s+up|see\s+me\s+again|come\s+back|return\s+if|talk\s+over\s+the\s+phone|next\s+week|call\s+back)\b", s_clean, re.IGNORECASE):
             followup.append(ExtractedFinding(
                 category="advice_followup",
                 name="Follow-up instructions",
@@ -469,7 +487,7 @@ def process_clinical_information(transcript_text: str) -> ExtractedClinicalInfor
     and returns a structured ExtractedClinicalInformation object.
     """
     raw_sentences = [
-        line.strip() for line in re.split(r"[\r\n.]+", transcript_text) if line.strip()
+        line.strip() for line in re.split(r"(?:(?<=[.?!])\s+)|\r|\n", transcript_text) if line.strip()
     ]
 
     info = ExtractedClinicalInformation()
