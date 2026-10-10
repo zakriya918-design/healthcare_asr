@@ -324,10 +324,14 @@ def execute_clinical_pipeline(
         if audio_path and audio_path.exists():
             transcriber = get_cached_transcriber(st.session_state.transcriber_model)
             progress_bar.progress(30)
-            raw_transcript, raw_segments = transcriber.transcribe_file(
-                audio_path,
-                enhance_audio=enhance_audio,
-            )
+            try:
+                raw_transcript, raw_segments = transcriber.transcribe_file(
+                    audio_path,
+                    enhance_audio=enhance_audio,
+                )
+            except TypeError:
+                # Defensive fallback if cached memory model does not take enhance_audio
+                raw_transcript, raw_segments = transcriber.transcribe_file(audio_path)
             st.session_state.audio_path = str(audio_path)
         else:
             raw_transcript = raw_text_input or ""
