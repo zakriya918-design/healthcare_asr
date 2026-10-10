@@ -523,19 +523,98 @@ with header_col2:
 st.markdown("---")
 
 if not rec:
-    st.info("👈 **Welcome to Healthcare AI Documentation Assistant.** Please select an input option in the sidebar (such as **Run Synthetic Demo Consultation**) and click **🚀 Process** to transcribe audio, extract clinical entities, generate SOAP notes, and view ICD-10 suggestions.")
-    
-    # Quick demo preview section
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        st.markdown("### 🎙️ Faster-Whisper ASR")
-        st.caption("100% Offline local speech recognition with automatic speaker-role categorization (Doctor vs Patient).")
-    with col_b:
-        st.markdown("### 🧠 Clinical NLP Engine")
-        st.caption("Extracts symptoms with negation sensitivity ('denies chest pain'), vital signs, medications, and allergies.")
-    with col_c:
-        st.markdown("### 📦 Interoperability Suite")
-        st.caption("One-click exports for HL7 FHIR R4 JSON, ReportLab PDF, print-ready HTML, and ZIP archives with SHA-256 manifests.")
+    st.markdown(
+        """
+        <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 12px; padding: 22px 26px; margin-bottom: 25px;">
+            <h3 style="margin-top: 0; color: #0284c7; display: flex; align-items: center; gap: 8px;">
+                🏥 Clinical Intake & Encounter Launchpad
+            </h3>
+            <p style="font-size: 1.02rem; line-height: 1.6; margin-bottom: 12px;">
+                <strong>Why this screen is shown:</strong> This is your initial intake hub. When you launch the application, no active patient consultation is loaded in memory yet.
+                Use this launchpad to record a live clinical encounter, upload consultation audio, or immediately run a full synthetic demo consultation below to explore all capabilities.
+            </p>
+            <p style="font-size: 0.92rem; color: #64748b; margin-bottom: 0;">
+                Once an encounter is loaded, the comprehensive 6-tab clinical workspace will automatically unlock (Diarized Audio & Transcript, NLP Findings, Clinical SOAP Note, ICD-10 Coding, EHR/FHIR Interoperability, and Historical Archive).
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Quick Action Buttons
+    action_col1, action_col2, action_col3 = st.columns([1.5, 1.2, 1.2])
+    with action_col1:
+        st.markdown("#### ⚡ 1-Click Instant Demo")
+        if st.button("🚀 Run Synthetic Demo Encounter Now", type="primary", use_container_width=True, key="launch_demo_main"):
+            with st.spinner("Processing synthetic back pain consultation with acoustic diarization & clinical NLP..."):
+                demo_rec = execute_clinical_pipeline(audio_source_type="demo", num_speakers=None)
+                if demo_rec:
+                    st.session_state.record = demo_rec
+                    st.rerun()
+    with action_col2:
+        st.markdown("#### 🎙️ Live Recording")
+        st.info("Expand sidebar 👈, select **Record Microphone**, choose your input device, click **Start Recording**, and hit **Process**.")
+    with action_col3:
+        st.markdown("#### 📁 File Upload")
+        st.info("Expand sidebar 👈, choose **Upload WAV / MP3 Audio File**, upload a consultation recording, and hit **Process**.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("### 🔄 End-to-End Clinical Documentation Workflow")
+
+    w1, w2, w3, w4 = st.columns(4)
+    with w1:
+        st.markdown(
+            """
+            <div class="medical-card" style="height: 100%;">
+                <div style="font-size: 1.8rem; margin-bottom: 6px;">🎙️</div>
+                <strong style="font-size: 1.05rem;">1. Multi-Speaker ASR</strong>
+                <p style="font-size: 0.88rem; color: #64748b; margin-top: 8px;">
+                    14-dimensional acoustic voiceprints with dynamic K-means clustering (2–4 persons: Doctor, Patient, Caregiver, Nurse).
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with w2:
+        st.markdown(
+            """
+            <div class="medical-card" style="height: 100%;">
+                <div style="font-size: 1.8rem; margin-bottom: 6px;">🧠</div>
+                <strong style="font-size: 1.05rem;">2. Clinical NLP & Negation</strong>
+                <p style="font-size: 0.88rem; color: #64748b; margin-top: 8px;">
+                    Extracts symptoms with negation sensitivity (e.g. 'denies chest pain'), vital signs matrix, home medications, and allergies.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with w3:
+        st.markdown(
+            """
+            <div class="medical-card" style="height: 100%;">
+                <div style="font-size: 1.8rem; margin-bottom: 6px;">📋</div>
+                <strong style="font-size: 1.05rem;">3. SOAP Note & ICD-10</strong>
+                <p style="font-size: 0.88rem; color: #64748b; margin-top: 8px;">
+                    Deterministic draft compiling Subjective (CC, HPI), Objective, Assessment, and Plan with automated ICD-10-CM code matching.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with w4:
+        st.markdown(
+            """
+            <div class="medical-card" style="height: 100%;">
+                <div style="font-size: 1.8rem; margin-bottom: 6px;">📦</div>
+                <strong style="font-size: 1.05rem;">4. Attestation & FHIR Export</strong>
+                <p style="font-size: 0.88rem; color: #64748b; margin-top: 8px;">
+                    Physician digital signature verification with 1-click export to HL7 FHIR R4 JSON, ReportLab PDF, and secure ZIP bundles.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     st.stop()
 
 
@@ -879,9 +958,32 @@ with tab2:
 # ===========================================================================
 with tab3:
     st.subheader("📋 Structured Clinical SOAP Note")
-    st.caption("Subjective, Objective, Assessment, Plan documentation.")
+    st.caption("Subjective, Objective, Assessment, Plan documentation with automated Clinical Safety & Completeness Audit.")
 
     soap = rec.soap_note
+
+    # Clinical Safety & Completeness Checklist
+    if soap.missing_or_uncertain_info:
+        st.markdown(
+            f"""
+            <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; border-radius: 8px; padding: 12px 18px; margin-bottom: 20px;">
+                <strong style="color: #b45309; font-size: 0.95rem;">⚠️ Clinical Documentation Gaps ({len(soap.missing_or_uncertain_info)} items flagged for review):</strong>
+                <ul style="margin: 6px 0 0 16px; padding: 0; color: #92400e; font-size: 0.9rem;">
+                    {"".join(f"<li>{item}</li>" for item in soap.missing_or_uncertain_info)}
+                </ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """
+            <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; border-radius: 8px; padding: 12px 18px; margin-bottom: 20px; color: #047857; font-size: 0.92rem;">
+                ✅ <strong>Clinical Checklist Complete:</strong> Baseline vital signs, primary diagnoses, and patient safety precautions documented.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     col_s1, col_s2 = st.columns(2)
     with col_s1:
@@ -889,7 +991,7 @@ with tab3:
         edited_s = st.text_area(
             "Chief complaint & history of present illness",
             value=soap.subjective,
-            height=160,
+            height=200,
             key="soap_subj",
         )
 
@@ -897,7 +999,7 @@ with tab3:
         edited_a = st.text_area(
             "Clinical evaluation, differential & confirmed diagnoses",
             value=soap.assessment,
-            height=140,
+            height=160,
             key="soap_assess",
         )
 
@@ -906,7 +1008,7 @@ with tab3:
         edited_o = st.text_area(
             "Vitals, physical examination & objective findings",
             value=soap.objective,
-            height=160,
+            height=200,
             key="soap_obj",
         )
 
@@ -914,12 +1016,52 @@ with tab3:
         edited_p = st.text_area(
             "Prescriptions, patient counseling, diagnostics & follow-up",
             value=soap.plan,
-            height=140,
+            height=160,
             key="soap_plan",
         )
 
+    # EHR-Ready Assembled Note Preview
+    with st.expander("📋 View Assembled Clinical Note (EHR Copy-Paste Ready)", expanded=False):
+        pt_display_id = rec.demographics.patient_id or "Pending ID"
+        full_assembled_note = f"""======================================================
+CLINICAL CONSULTATION NOTE (SOAP FORMAT)
+Clinic: {st.session_state.branding.clinic_name}
+Department: {st.session_state.branding.department}
+Patient ID: {pt_display_id} | Encounter: {rec.consultation_id[:12]}
+Review Status: {rec.review_status.value}
+======================================================
+
+[SUBJECTIVE]
+{edited_s}
+
+[OBJECTIVE]
+{edited_o}
+
+[ASSESSMENT]
+{edited_a}
+
+[PLAN]
+{edited_p}
+
+======================================================
+CLINICAL ATTESTATION & SIGNATURE:
+Signed by: {rec.signed_by or 'Pending Clinician Signature'}
+Attestation Timestamp: {rec.signed_at or 'Pending Verification'}
+======================================================"""
+        st.code(full_assembled_note, language="text")
+
     st.markdown("---")
     st.subheader("✍️ Clinician Verification & Attestation")
+
+    if rec.review_status == ReviewStatus.REVIEWED_APPROVED:
+        st.markdown(
+            f"""
+            <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px; padding: 12px 18px; margin-bottom: 16px; color: #047857;">
+                <strong>✅ Clinically Signed & Attested:</strong> This record was verified by <strong>{rec.signed_by or 'Attending Physician'}</strong> on <code>{rec.signed_at or 'Approved'}</code>.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     sign_col1, sign_col2 = st.columns([2, 1])
     with sign_col1:

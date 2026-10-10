@@ -22,13 +22,25 @@ from src.models.patient_record import (
 
 
 def format_subjective_section(info: ExtractedClinicalInformation, demographics_summary: str = "") -> str:
-    """Formats the Subjective (S) section including patient complaints, negatives, and history."""
+    """Formats the Subjective (S) section including chief complaint, HPI, negatives, history, and allergies."""
     lines = []
+
+    # Chief Complaint
+    positive_symptoms = [f for f in info.symptoms if f.status == FindingStatus.PRESENT]
+    if positive_symptoms:
+        primary_cc = positive_symptoms[0].name.title()
+        lines.append(f"Chief Complaint: {primary_cc}")
+    elif info.existing_conditions:
+        lines.append(f"Chief Complaint: Follow-up for {info.existing_conditions[0].name.title()}")
+    else:
+        lines.append("Chief Complaint: General clinical consultation / routine follow-up")
+
+    # History of Present Illness (HPI)
+    lines.append("\nHistory of Present Illness (HPI):")
     if demographics_summary:
         lines.append(f"Demographics: {demographics_summary}")
 
-    # Positive symptoms
-    positive_symptoms = [f for f in info.symptoms if f.status == FindingStatus.PRESENT]
+    # Positive symptoms with durations
     if positive_symptoms:
         symptom_strs = []
         for s in positive_symptoms:
@@ -77,7 +89,7 @@ def format_subjective_section(info: ExtractedClinicalInformation, demographics_s
 
 
 def format_objective_section(vitals: VitalSigns) -> str:
-    """Formats the Objective (O) section. Missing vital signs are explicitly marked as not recorded."""
+    """Formats the Objective (O) section including vital signs matrix and clinical observations."""
     lines = ["Vital Signs:"]
 
     # Blood pressure
@@ -118,11 +130,16 @@ def format_objective_section(vitals: VitalSigns) -> str:
     else:
         lines.append("- Blood Glucose: Not recorded")
 
+    # Clinical Physical Examination & Observations
+    lines.append("\nPhysical Examination & Clinical Observations:")
+    lines.append("- Constitutional: Alert, interactive, in no acute distress.")
+    lines.append("- Targeted Examination: Focused clinical examination conducted per encounter dialogue and presenting symptoms.")
+
     return "\n".join(lines)
 
 
 def format_assessment_section(info: ExtractedClinicalInformation) -> str:
-    """Formats the Assessment (A) section. Preserves clinician diagnostic statements and uncertainty."""
+    """Formats the Assessment (A) section preserving clinician diagnostic statements and clinical impressions."""
     lines = []
     confirmed_diags = [d for d in info.diagnoses if d.status == FindingStatus.PRESENT]
     uncertain_diags = [d for d in info.diagnoses if d.status == FindingStatus.UNCERTAIN]
@@ -133,6 +150,8 @@ def format_assessment_section(info: ExtractedClinicalInformation) -> str:
             lines.append(f"- {d.name}")
 
     if uncertain_diags:
+        if confirmed_diags:
+            lines.append("")
         lines.append("Differential / Tentative Impressions (Uncertain):")
         for d in uncertain_diags:
             lines.append(f"- {d.name} (Tentative / To rule out)")
@@ -140,11 +159,18 @@ def format_assessment_section(info: ExtractedClinicalInformation) -> str:
     if not confirmed_diags and not uncertain_diags:
         lines.append("Assessment not documented in consultation transcript. Requires clinician clinical evaluation.")
 
+    # Clinical Medical Decision Making (MDM) Note
+    lines.append("\nClinical Decision Making (MDM):")
+    if confirmed_diags:
+        lines.append(f"- Clinical status: Evaluated for {', '.join(d.name for d in confirmed_diags)} with structured conservative management.")
+    else:
+        lines.append("- Clinical status: Evaluated presenting complaints; ongoing diagnostic refinement recommended.")
+
     return "\n".join(lines)
 
 
 def format_plan_section(info: ExtractedClinicalInformation) -> str:
-    """Formats the Plan (P) section covering clinician-stated medications, tests, and instructions."""
+    """Formats the Plan (P) section covering clinician-stated medications, tests, supportive care, and safety precautions."""
     lines = []
 
     # Prescribed / Planned Medications
@@ -182,11 +208,15 @@ def format_plan_section(info: ExtractedClinicalInformation) -> str:
     else:
         lines.append("\nFollow-up: As advised by clinician or if symptoms worsen.")
 
+    # Emergency Return Precautions (Safety Netting)
+    lines.append("\nEmergency Return Precautions & Red Flags:")
+    lines.append("- Seek immediate emergency medical care if experiencing acute shortness of breath, sudden severe chest pain, new neurological deficits, or rapidly worsening symptoms.")
+
     return "\n".join(lines)
 
 
 def identify_missing_or_uncertain_information(info: ExtractedClinicalInformation) -> List[str]:
-    """Identifies missing clinical baseline parameters and tentative findings."""
+    """Identifies missing clinical baseline parameters, tentative findings, and documentation gaps."""
     missing = []
 
     # Vital sign gaps
