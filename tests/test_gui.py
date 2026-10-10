@@ -203,4 +203,11 @@ def test_gui_record_browser_window(tk_app, tmp_path):
         win.destroy()
 
 
+def test_gui_audio_diagnostic_dialog(tk_app):
+    win = tk_app.open_audio_diagnostic_dialog()
+    assert win is not None
+    assert "Microphone Pre-Flight Diagnostic" in win.title()
+    win.destroy()
+
+
 

@@ -40,6 +40,7 @@ from src.processing.medical_processor import process_clinical_information, extra
 from src.processing.soap_note import generate_soap_note
 from src.processing.exporter import export_html_report, export_pdf_report, ClinicBranding
 from src.processing.record_search import index_consultation_records, search_records, RecordSummary
+from src.audio.diagnostics import run_audio_diagnostic, AudioDiagnosticResult
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("HealthcareASR")
@@ -377,6 +378,19 @@ class HealthcareASRApp:
         self.combo_mic.set("Default System Mic")
         self.combo_mic.bind("<<ComboboxSelected>>", self._on_mic_changed)
         self.combo_mic.pack(side=tk.LEFT)
+
+        self.btn_mic_diag = tk.Button(
+            mic_frame,
+            text="🩺 Check",
+            font=("Segoe UI", 8, "bold"),
+            bg="#059669",
+            fg="white",
+            padx=6,
+            pady=1,
+            relief=tk.FLAT,
+            command=self.open_audio_diagnostic_dialog
+        )
+        self.btn_mic_diag.pack(side=tk.LEFT, padx=(4, 0))
 
     def _on_mic_changed(self, event=None):
         selection = self.combo_mic.get()
@@ -1404,6 +1418,170 @@ class HealthcareASRApp:
         # Initial load
         refresh_records()
         return browser_win
+
+    def open_audio_diagnostic_dialog(self):
+        """Opens interactive Pre-Flight Microphone Diagnostic Tool."""
+        diag_win = tk.Toplevel(self.root)
+        diag_win.title("🩺 Microphone Pre-Flight Diagnostic")
+        diag_win.geometry("580x560")
+        diag_win.minsize(520, 500)
+
+        # Header Frame
+        hdr = tk.Frame(diag_win, bg="#0F172A", padx=16, pady=12)
+        hdr.pack(fill=tk.X)
+
+        tk.Label(
+            hdr,
+            text="🩺 Audio Pre-Flight Diagnostic",
+            font=("Segoe UI", 12, "bold"),
+            fg="#FFFFFF",
+            bg="#0F172A"
+        ).pack(anchor=tk.W)
+
+        mic_name = self.combo_mic.get() if hasattr(self, "combo_mic") else "Default System Mic"
+        tk.Label(
+            hdr,
+            text=f"Selected Device: {mic_name}",
+            font=("Segoe UI", 9),
+            fg="#94A3B8",
+            bg="#0F172A"
+        ).pack(anchor=tk.W, pady=(2, 0))
+
+        content_frame = tk.Frame(diag_win, padx=16, pady=12)
+        content_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Instruction card
+        inst_box = tk.LabelFrame(content_frame, text="Diagnostic Instructions", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
+        inst_box.pack(fill=tk.X, pady=(0, 10))
+
+        tk.Label(
+            inst_box,
+            text="1. Click 'Start 3-Second Test' below.\n"
+                 "2. Speak in your normal clinical tone (e.g., 'Testing one two three, patient examination').\n"
+                 "3. The tool will measure peak dBFS, noise floor, SNR, and detect digital clipping.",
+            font=("Segoe UI", 9),
+            justify=tk.LEFT
+        ).pack(anchor=tk.W)
+
+        # Rating banner
+        frame_rating = tk.Frame(content_frame, bg="#F1F5F9", relief=tk.RIDGE, bd=1, padx=12, pady=10)
+        frame_rating.pack(fill=tk.X, pady=(0, 10))
+
+        lbl_rating_title = tk.Label(frame_rating, text="AUDIO QUALITY RATING:", font=("Segoe UI", 8, "bold"), bg="#F1F5F9", fg="#64748B")
+        lbl_rating_title.pack(anchor=tk.W)
+
+        lbl_rating_badge = tk.Label(frame_rating, text="NOT TESTED", font=("Segoe UI", 14, "bold"), bg="#F1F5F9", fg="#475569")
+        lbl_rating_badge.pack(anchor=tk.W, pady=(2, 0))
+
+        # Metrics Grid
+        metrics_box = tk.LabelFrame(content_frame, text="Acoustic Measurements", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
+        metrics_box.pack(fill=tk.X, pady=(0, 10))
+
+        metrics_grid = tk.Frame(metrics_box)
+        metrics_grid.pack(fill=tk.X)
+
+        lbl_peak = tk.Label(metrics_grid, text="Peak Amplitude:\n-- dBFS", font=("Segoe UI", 9), justify=tk.CENTER, relief=tk.GROOVE, bd=1, padx=6, pady=6)
+        lbl_peak.grid(row=0, column=0, sticky="ew", padx=3, pady=2)
+
+        lbl_rms = tk.Label(metrics_grid, text="RMS Level:\n-- dBFS", font=("Segoe UI", 9), justify=tk.CENTER, relief=tk.GROOVE, bd=1, padx=6, pady=6)
+        lbl_rms.grid(row=0, column=1, sticky="ew", padx=3, pady=2)
+
+        lbl_noise = tk.Label(metrics_grid, text="Noise Floor:\n-- dBFS", font=("Segoe UI", 9), justify=tk.CENTER, relief=tk.GROOVE, bd=1, padx=6, pady=6)
+        lbl_noise.grid(row=0, column=2, sticky="ew", padx=3, pady=2)
+
+        lbl_snr = tk.Label(metrics_grid, text="Signal-to-Noise:\n-- dB", font=("Segoe UI", 9), justify=tk.CENTER, relief=tk.GROOVE, bd=1, padx=6, pady=6)
+        lbl_snr.grid(row=1, column=0, sticky="ew", padx=3, pady=2)
+
+        lbl_clip = tk.Label(metrics_grid, text="Clipping Ratio:\n-- %", font=("Segoe UI", 9), justify=tk.CENTER, relief=tk.GROOVE, bd=1, padx=6, pady=6)
+        lbl_clip.grid(row=1, column=1, sticky="ew", padx=3, pady=2)
+
+        lbl_silent = tk.Label(metrics_grid, text="Signal Detected:\n--", font=("Segoe UI", 9), justify=tk.CENTER, relief=tk.GROOVE, bd=1, padx=6, pady=6)
+        lbl_silent.grid(row=1, column=2, sticky="ew", padx=3, pady=2)
+
+        for col in range(3):
+            metrics_grid.columnconfigure(col, weight=1)
+
+        # Recommendations Frame
+        recs_box = tk.LabelFrame(content_frame, text="Clinical Recommendations", font=("Segoe UI", 9, "bold"), padx=10, pady=8)
+        recs_box.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        txt_recs = tk.Text(recs_box, wrap=tk.WORD, font=("Segoe UI", 9), height=5, relief=tk.FLAT, bg="#F8FAFC")
+        txt_recs.pack(fill=tk.BOTH, expand=True)
+        txt_recs.insert(tk.END, "Click 'Start 3-Second Test' to evaluate acoustic conditions.")
+        txt_recs.config(state=tk.DISABLED)
+
+        # Bottom Action Bar
+        bottom_frame = tk.Frame(diag_win, padx=16, pady=10, bg="#F1F5F9")
+        bottom_frame.pack(fill=tk.X, side=tk.BOTTOM)
+
+        lbl_status = tk.Label(bottom_frame, text="Idle", font=("Segoe UI", 9, "italic"), bg="#F1F5F9", fg="#64748B")
+        lbl_status.pack(side=tk.LEFT)
+
+        btn_run = tk.Button(
+            bottom_frame,
+            text="▶️ Start 3-Second Test",
+            font=("Segoe UI", 9, "bold"),
+            bg="#059669",
+            fg="white",
+            relief=tk.FLAT,
+            padx=12,
+            pady=4
+        )
+        btn_run.pack(side=tk.RIGHT, padx=4)
+
+        btn_close = tk.Button(
+            bottom_frame,
+            text="Close",
+            font=("Segoe UI", 9),
+            bg="#E2E8F0",
+            relief=tk.FLAT,
+            padx=10,
+            pady=4,
+            command=diag_win.destroy
+        )
+        btn_close.pack(side=tk.RIGHT, padx=4)
+
+        def on_diagnostic_complete(result: AudioDiagnosticResult):
+            badge_colors = {
+                "EXCELLENT": ("#065F46", "#D1FAE5"),
+                "GOOD": ("#1E40AF", "#DBEAFE"),
+                "FAIR": ("#92400E", "#FEF3C7"),
+                "POOR": ("#991B1B", "#FEE2E2"),
+                "CRITICAL": ("#7F1D1D", "#FEE2E2"),
+            }
+            fg, bg = badge_colors.get(result.quality_rating, ("#1E293B", "#F1F5F9"))
+            lbl_rating_badge.config(text=f"● {result.quality_rating}", fg=fg)
+            frame_rating.config(bg=bg)
+            lbl_rating_title.config(bg=bg)
+            lbl_rating_badge.config(bg=bg)
+
+            lbl_peak.config(text=f"Peak Amplitude:\n{result.peak_db:.1f} dBFS")
+            lbl_rms.config(text=f"RMS Level:\n{result.rms_db:.1f} dBFS")
+            lbl_noise.config(text=f"Noise Floor:\n{result.noise_floor_db:.1f} dBFS")
+            lbl_snr.config(text=f"Signal-to-Noise:\n{result.snr_db:.1f} dB")
+            lbl_clip.config(text=f"Clipping Ratio:\n{result.clipping_ratio * 100:.2f} %")
+            lbl_silent.config(text=f"Signal Detected:\n{'NO (Silent)' if result.is_silent else 'YES'}")
+
+            txt_recs.config(state=tk.NORMAL)
+            txt_recs.delete("1.0", tk.END)
+            for r in result.recommendations:
+                txt_recs.insert(tk.END, f"• {r}\n")
+            txt_recs.config(state=tk.DISABLED)
+
+            lbl_status.config(text="Test completed successfully.", fg="#059669")
+            btn_run.config(state=tk.NORMAL)
+
+        def worker_run_test():
+            result = run_audio_diagnostic(device_index=self.selected_mic_index, duration=3.0)
+            diag_win.after(0, lambda: on_diagnostic_complete(result))
+
+        def start_test():
+            btn_run.config(state=tk.DISABLED)
+            lbl_status.config(text="🎙️ Recording 3s sample... Speak now!", fg="#D97706")
+            threading.Thread(target=worker_run_test, daemon=True).start()
+
+        btn_run.config(command=start_test)
+        return diag_win
 
     def sign_off_consultation(self):
         if not self.current_record:
