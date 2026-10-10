@@ -4,6 +4,11 @@ venv/
 ENV/
 env/
 
+# Build & Packaging Artefacts
+dist/
+build/
+*.spec
+
 # Python Cache & Bytecode
 __pycache__/
 *.py[cod]
