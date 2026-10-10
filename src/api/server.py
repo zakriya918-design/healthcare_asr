@@ -166,6 +166,8 @@ async def transcribe_consultation(
                 tmp_audio_path,
                 enhance_audio=enhance_audio,
             )
+            from src.audio.diarization import diarize_consultation_audio
+            annotated_segments = diarize_consultation_audio(raw_segments, audio_path=tmp_audio_path)
         finally:
             if tmp_audio_path.exists():
                 tmp_audio_path.unlink()
@@ -183,9 +185,8 @@ async def transcribe_consultation(
                     speaker_role=SpeakerRole.UNKNOWN,
                 )
             )
-
-    # 2. Speaker-role Estimation
-    annotated_segments = process_transcript_segments(raw_segments)
+        from src.audio.diarization import diarize_consultation_audio
+        annotated_segments = diarize_consultation_audio(raw_segments)
 
     # 3. Clinical Entity & Demographics Extraction
     extracted_info = process_clinical_information(raw_transcript)

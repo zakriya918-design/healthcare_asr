@@ -915,8 +915,9 @@ class HealthcareASRApp:
 
             raw_transcript, raw_segments = self.transcriber.transcribe_file(wav_path)
 
-            self.worker_queue.put({"type": "status", "text": "Estimating speaker roles..."})
-            annotated_segments = process_transcript_segments(raw_segments)
+            self.worker_queue.put({"type": "status", "text": "Estimating speaker roles (acoustic & clinical)..."})
+            from src.audio.diarization import diarize_consultation_audio
+            annotated_segments = diarize_consultation_audio(raw_segments, audio_path=wav_path)
 
             self.worker_queue.put({"type": "status", "text": "Extracting clinical findings & vital signs..."})
             extracted_info = process_clinical_information(raw_transcript)

@@ -353,8 +353,9 @@ def execute_clinical_pipeline(
 
         progress_bar.progress(55)
 
-        # 2. Speaker-role Estimation
-        annotated_segments = process_transcript_segments(raw_segments)
+        # 2. Speaker-role Estimation (Acoustic voice clustering & clinical heuristics)
+        from src.audio.diarization import diarize_consultation_audio
+        annotated_segments = diarize_consultation_audio(raw_segments, audio_path=audio_path)
 
         # 3. Clinical Entity & Demographics Extraction
         extracted_info = process_clinical_information(raw_transcript)
@@ -541,39 +542,98 @@ with tab1:
 
     with col_t2:
         st.subheader("👥 Conversational Dialogue Timeline")
-        st.caption("Speaker role estimated via clinical contextual heuristics.")
+        st.caption("Speaker role estimated via acoustic voice clustering & clinical contextual heuristics.")
 
         if rec.segments:
-            for seg in rec.segments:
-                role_val = seg.speaker_role.value if isinstance(seg.speaker_role, SpeakerRole) else str(seg.speaker_role)
-                time_tag = f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s]"
+            doc_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.DOCTOR.value]
+            pt_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.PATIENT.value]
+            unk_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.UNKNOWN.value]
 
-                if role_val == SpeakerRole.DOCTOR.value:
-                    bubble_class = "bubble-doctor"
-                    icon = "🩺"
-                    title = f"DOCTOR {time_tag}"
-                elif role_val == SpeakerRole.PATIENT.value:
-                    bubble_class = "bubble-patient"
-                    icon = "👤"
-                    title = f"PATIENT {time_tag}"
+            sb1, sb2, sb3 = st.columns(3)
+            with sb1:
+                st.markdown(f"**🩺 Doctor Dialogues:** `{len(doc_segs)}`")
+            with sb2:
+                st.markdown(f"**👤 Patient Dialogues:** `{len(pt_segs)}`")
+            with sb3:
+                st.markdown(f"**❓ Unassigned:** `{len(unk_segs)}`")
+
+            dialogue_filter = st.radio(
+                "Filter Dialogues:",
+                ["💬 All Dialogues (Timeline)", f"🩺 Doctor Said ({len(doc_segs)})", f"👤 Patient Said ({len(pt_segs)})"],
+                horizontal=True,
+                label_visibility="collapsed",
+                key="dialogue_filter_selector",
+            )
+
+            if dialogue_filter == "💬 All Dialogues (Timeline)":
+                for seg in rec.segments:
+                    role_val = seg.speaker_role.value if isinstance(seg.speaker_role, SpeakerRole) else str(seg.speaker_role)
+                    time_tag = f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s]"
+
+                    if role_val == SpeakerRole.DOCTOR.value:
+                        bubble_class = "bubble-doctor"
+                        icon = "🩺"
+                        title = f"DOCTOR {time_tag}"
+                    elif role_val == SpeakerRole.PATIENT.value:
+                        bubble_class = "bubble-patient"
+                        icon = "👤"
+                        title = f"PATIENT {time_tag}"
+                    else:
+                        bubble_class = "bubble-unknown"
+                        icon = "❓"
+                        title = f"UNKNOWN {time_tag}"
+
+                    st.markdown(
+                        f"""
+                        <div class="{bubble_class}">
+                            <div style="font-size: 0.8rem; font-weight: 700; opacity: 0.8; margin-bottom: 4px;">
+                                {icon} {title}
+                            </div>
+                            <div style="font-size: 0.95rem;">
+                                {seg.text}
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+            elif "Doctor Said" in dialogue_filter:
+                if doc_segs:
+                    for seg in doc_segs:
+                        time_tag = f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s]"
+                        st.markdown(
+                            f"""
+                            <div class="bubble-doctor" style="margin-bottom: 8px;">
+                                <div style="font-size: 0.8rem; font-weight: 700; opacity: 0.8; margin-bottom: 4px;">
+                                    🩺 DOCTOR {time_tag}
+                                </div>
+                                <div style="font-size: 0.95rem;">
+                                    {seg.text}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
                 else:
-                    bubble_class = "bubble-unknown"
-                    icon = "❓"
-                    title = f"UNKNOWN {time_tag}"
-
-                st.markdown(
-                    f"""
-                    <div class="{bubble_class}">
-                        <div style="font-size: 0.8rem; font-weight: 700; opacity: 0.8; margin-bottom: 4px;">
-                            {icon} {title}
-                        </div>
-                        <div style="font-size: 0.95rem;">
-                            {seg.text}
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    st.info("No doctor utterances detected.")
+            else:
+                if pt_segs:
+                    for seg in pt_segs:
+                        time_tag = f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s]"
+                        st.markdown(
+                            f"""
+                            <div class="bubble-patient" style="margin-bottom: 8px;">
+                                <div style="font-size: 0.8rem; font-weight: 700; opacity: 0.8; margin-bottom: 4px;">
+                                    👤 PATIENT {time_tag}
+                                </div>
+                                <div style="font-size: 0.95rem;">
+                                    {seg.text}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.info("No patient utterances detected.")
         else:
             st.write(rec.raw_transcript)
 
