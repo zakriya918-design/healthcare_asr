@@ -41,6 +41,7 @@ from src.processing.soap_note import generate_soap_note
 from src.processing.exporter import export_html_report, export_pdf_report, ClinicBranding
 from src.processing.record_search import index_consultation_records, search_records, RecordSummary
 from src.audio.diagnostics import run_audio_diagnostic, AudioDiagnosticResult
+from src.processing.icd10_coding import suggest_icd10_codes, ICD10CodeMatch, format_icd10_coding_block
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("HealthcareASR")
@@ -443,6 +444,109 @@ class HealthcareASRApp:
         self.notebook.add(tab_json, text=" 📦 Structured JSON Record ")
         self._build_json_tab(tab_json)
 
+        # Tab 5: ICD-10 Coding Assistant
+        tab_icd10 = ttk.Frame(self.notebook, padding=8)
+        self.notebook.add(tab_icd10, text=" 🏷️ ICD-10 Codes ")
+        self._build_icd10_tab(tab_icd10)
+
+    def _build_icd10_tab(self, parent: ttk.Frame):
+        # Advisory notice
+        notice_frame = tk.Frame(parent, bg="#FAF5FF", padx=10, pady=8, relief=tk.RIDGE, bd=1)
+        notice_frame.pack(fill=tk.X, pady=(0, 8))
+
+        tk.Label(
+            notice_frame,
+            text="🏷️ ICD-10-CM Clinical Coding Assistant",
+            font=("Segoe UI", 10, "bold"),
+            fg="#6B21A8",
+            bg="#FAF5FF"
+        ).pack(anchor=tk.W)
+
+        tk.Label(
+            notice_frame,
+            text="AI-suggested diagnosis and symptom codes mapped from extracted clinical findings. Requires licensed clinician verification prior to billing/EHR submission.",
+            font=("Segoe UI", 9),
+            fg="#7E22CE",
+            bg="#FAF5FF"
+        ).pack(anchor=tk.W, pady=(2, 0))
+
+        # Table frame
+        tbl_frame = ttk.Frame(parent)
+        tbl_frame.pack(fill=tk.BOTH, expand=True)
+
+        columns = ("code", "description", "matched", "category", "conf", "status")
+        self.tree_icd10 = ttk.Treeview(tbl_frame, columns=columns, show="headings", selectmode="browse")
+
+        self.tree_icd10.heading("code", text="ICD-10 Code")
+        self.tree_icd10.heading("description", text="Official Description")
+        self.tree_icd10.heading("matched", text="Matched Clinical Entity")
+        self.tree_icd10.heading("category", text="Category")
+        self.tree_icd10.heading("conf", text="Confidence")
+        self.tree_icd10.heading("status", text="Coding Status")
+
+        self.tree_icd10.column("code", width=100, anchor=tk.CENTER)
+        self.tree_icd10.column("description", width=280, anchor=tk.W)
+        self.tree_icd10.column("matched", width=160, anchor=tk.W)
+        self.tree_icd10.column("category", width=110, anchor=tk.CENTER)
+        self.tree_icd10.column("conf", width=90, anchor=tk.CENTER)
+        self.tree_icd10.column("status", width=150, anchor=tk.CENTER)
+
+        scroll_y = ttk.Scrollbar(tbl_frame, orient=tk.VERTICAL, command=self.tree_icd10.yview)
+        scroll_x = ttk.Scrollbar(tbl_frame, orient=tk.HORIZONTAL, command=self.tree_icd10.xview)
+        self.tree_icd10.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
+
+        self.tree_icd10.grid(row=0, column=0, sticky="nsew")
+        scroll_y.grid(row=0, column=1, sticky="ns")
+        scroll_x.grid(row=1, column=0, sticky="ew")
+
+        tbl_frame.rowconfigure(0, weight=1)
+        tbl_frame.columnconfigure(0, weight=1)
+
+        # Bottom action bar
+        act_frame = tk.Frame(parent, bg="#F3F4F6", padx=8, pady=8)
+        act_frame.pack(fill=tk.X, pady=(8, 0))
+
+        self.lbl_icd_count = tk.Label(act_frame, text="0 codes suggested", font=("Segoe UI", 9, "italic"), bg="#F3F4F6", fg="#4B5563")
+        self.lbl_icd_count.pack(side=tk.LEFT)
+
+        def copy_selected_code():
+            sel = self.tree_icd10.selection()
+            if not sel:
+                messagebox.showwarning("Select Code", "Please select an ICD-10 code from the table first.")
+                return
+            vals = self.tree_icd10.item(sel[0], "values")
+            if vals:
+                text = f"{vals[0]} — {vals[1]}"
+                self.root.clipboard_clear()
+                self.root.clipboard_append(text)
+                self.lbl_feedback.config(text=f"Copied to clipboard: {vals[0]}")
+                messagebox.showinfo("Copied", f"Copied to clipboard:\n\n{text}")
+
+        def append_to_soap_assessment():
+            sel = self.tree_icd10.selection()
+            if not sel:
+                messagebox.showwarning("Select Code", "Please select an ICD-10 code from the table first.")
+                return
+            vals = self.tree_icd10.item(sel[0], "values")
+            if vals:
+                entry = f"[ICD-10: {vals[0]} — {vals[1]}]"
+                curr = self.txt_soap.get("1.0", tk.END).strip()
+                if "A — ASSESSMENT:" in curr:
+                    parts = curr.split("A — ASSESSMENT:")
+                    new_txt = parts[0] + "A — ASSESSMENT:\n" + entry + "\n" + parts[1]
+                    self.txt_soap.delete("1.0", tk.END)
+                    self.txt_soap.insert(tk.END, new_txt)
+                else:
+                    self.txt_soap.insert(tk.END, f"\n\n{entry}")
+                self.lbl_feedback.config(text=f"Appended {vals[0]} into SOAP note.")
+                messagebox.showinfo("Applied", f"Inserted ICD-10 code {vals[0]} into Clinical Assessment!")
+
+        btn_copy = tk.Button(act_frame, text="📋 Copy Code", font=("Segoe UI", 8), bg="#4B5563", fg="white", relief=tk.FLAT, padx=8, pady=3, command=copy_selected_code)
+        btn_copy.pack(side=tk.RIGHT, padx=4)
+
+        btn_apply = tk.Button(act_frame, text="✍️ Insert into SOAP", font=("Segoe UI", 8, "bold"), bg="#7C3AED", fg="white", relief=tk.FLAT, padx=8, pady=3, command=append_to_soap_assessment)
+        btn_apply.pack(side=tk.RIGHT, padx=4)
+
     def _build_transcript_tab(self, parent: ttk.Frame):
         lbl_info = ttk.Label(
             parent,
@@ -735,6 +839,7 @@ class HealthcareASRApp:
         self._render_medical_tab(record.extracted_info)
         self._render_soap_tab(record.soap_note)
         self._render_json_tab(record)
+        self._render_icd10_tab(record)
 
         self.btn_export.config(state=tk.NORMAL)
         self.btn_export_html.config(state=tk.NORMAL)
@@ -890,6 +995,26 @@ class HealthcareASRApp:
     def _render_json_tab(self, record: ConsultationRecord):
         self.txt_json.delete("1.0", tk.END)
         self.txt_json.insert(tk.END, record.to_json(indent=2))
+
+    def _render_icd10_tab(self, record: ConsultationRecord):
+        for item in self.tree_icd10.get_children():
+            self.tree_icd10.delete(item)
+
+        matches = suggest_icd10_codes(record.extracted_info)
+        for m in matches:
+            self.tree_icd10.insert(
+                "",
+                tk.END,
+                values=(
+                    m.code,
+                    m.description,
+                    m.matched_term,
+                    m.category.title(),
+                    f"{int(m.confidence * 100)}%",
+                    "Suggested (Review Req.)"
+                )
+            )
+        self.lbl_icd_count.config(text=f"{len(matches)} ICD-10 code(s) suggested")
 
     def export_json_record(self):
         if not self.current_record:
@@ -1660,6 +1785,9 @@ class HealthcareASRApp:
         self.txt_medical.delete("1.0", tk.END)
         self.txt_soap.delete("1.0", tk.END)
         self.txt_json.delete("1.0", tk.END)
+        for item in self.tree_icd10.get_children():
+            self.tree_icd10.delete(item)
+        self.lbl_icd_count.config(text="0 codes suggested")
 
     def on_close(self):
         if self.recorder and self.recorder.is_recording:

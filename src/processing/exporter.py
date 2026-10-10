@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 from src.models.patient_record import ConsultationRecord, FindingStatus
+from src.processing.icd10_coding import suggest_icd10_codes
 
 logger = logging.getLogger(__name__)
 
@@ -318,6 +319,33 @@ def generate_html_report(record: ConsultationRecord, branding: Optional[ClinicBr
             """
         html_code += "</tbody></table>"
 
+    # ICD-10 Diagnostic Coding Table
+    icd_codes = suggest_icd10_codes(info)
+    if icd_codes:
+        html_code += """
+        <div class="section-title">Suggested ICD-10-CM Diagnostic Codes (Draft)</div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 15%;">ICD-10 Code</th>
+                    <th style="width: 45%;">Official Description</th>
+                    <th style="width: 25%;">Matched Clinical Finding</th>
+                    <th style="width: 15%;">Confidence</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        for cm in icd_codes:
+            html_code += f"""
+                <tr>
+                    <td><strong style="color: #6b21a8;">{html.escape(cm.code)}</strong></td>
+                    <td>{html.escape(cm.description)}</td>
+                    <td>{html.escape(cm.matched_term)} <span style="font-size: 11px; color: #718096;">({html.escape(cm.category)})</span></td>
+                    <td><span class="badge badge-present">{int(cm.confidence * 100)}%</span></td>
+                </tr>
+            """
+        html_code += "</tbody></table>"
+
     if record.segments:
         html_code += """
         <div class="section-title">Recognized Dialogue & Speaker Roles</div>
@@ -565,6 +593,34 @@ def export_pdf_report(
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
         ]))
         story.append(findings_table)
+
+    # ICD-10 Coding Table for PDF
+    icd_matches = suggest_icd10_codes(info)
+    if icd_matches:
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Suggested ICD-10-CM Diagnostic Codes (Draft)", heading2_style))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#6b21a8"), spaceAfter=6))
+
+        icd_table_data = [["Code", "Official Description", "Matched Clinical Finding", "Confidence"]]
+        for cm in icd_matches:
+            icd_table_data.append([
+                Paragraph(f"<b>{cm.code}</b>", body_style),
+                Paragraph(cm.description, body_style),
+                Paragraph(f"{cm.matched_term} ({cm.category})", body_style),
+                Paragraph(f"{int(cm.confidence * 100)}%", body_style)
+            ])
+
+        icd_table = Table(icd_table_data, colWidths=[80, 230, 160, 70])
+        icd_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#6b21a8')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 9),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ]))
+        story.append(icd_table)
 
     # Footer note
     story.append(Spacer(1, 14))

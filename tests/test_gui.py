@@ -210,4 +210,28 @@ def test_gui_audio_diagnostic_dialog(tk_app):
     win.destroy()
 
 
+def test_gui_icd10_tab_render(tk_app):
+    record = ConsultationRecord(
+        demographics=PatientDemographics(age=45, gender="Male"),
+        raw_transcript="Doctor: Diagnosis is hypertension and asthma.",
+        extracted_info=ExtractedClinicalInformation(
+            diagnoses=[ExtractedFinding(category="diagnosis", name="asthma", status=FindingStatus.PRESENT)],
+            existing_conditions=[ExtractedFinding(category="condition", name="hypertension", status=FindingStatus.PRESENT)]
+        )
+    )
+    tk_app._handle_transcription_complete(record)
+
+    items = tk_app.tree_icd10.get_children()
+    assert len(items) >= 2
+
+    codes = [tk_app.tree_icd10.item(i, "values")[0] for i in items]
+    assert "J45.909" in codes
+    assert "I10" in codes
+
+    # Test reset clears the table
+    tk_app.clear_consultation()
+    assert len(tk_app.tree_icd10.get_children()) == 0
+
+
+
 
