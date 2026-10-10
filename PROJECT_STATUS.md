@@ -4,7 +4,7 @@
 **Location:** `c:\Users\Aziza\Desktop\project` / `C:\Users\Aziza\HEALTHCARE_ASR`  
 **Current Status:** Fully Built, Tested, and Operational  
 **Last Verified:** October 10, 2026  
-**Test Suite Pass Rate:** **108 / 108 tests passed (100%)**
+**Test Suite Pass Rate:** **109 / 109 tests passed (100%)**
 
 ---
 
@@ -54,11 +54,11 @@ All components run locally on Windows (CPU-compatible inference with Faster-Whis
 ```
 
 ### Results Summary
-- **Total Tests Collected:** 108
-- **Tests Passed:** 108
+- **Total Tests Collected:** 109
+- **Tests Passed:** 109
 - **Tests Failed:** 0
 - **Pass Rate:** **100%**
-- **Execution Time:** ~21.2 seconds
+- **Execution Time:** ~9.4 seconds
 
 ### Breakdown by Module (17 Suites)
 1. `tests/test_paths.py` — **5 passed**: Project root discovery, default base directory resolution, environment variable overrides, subdirectory creation, synthetic WAV resolution.
@@ -73,7 +73,7 @@ All components run locally on Windows (CPU-compatible inference with Faster-Whis
 10. `tests/test_patient_record.py` — **8 passed**: Dataclass construction, null field safety, serialization round-trip, finding statuses.
 11. `tests/test_json_export.py` — **4 passed**: Atomic file writing, non-overwriting filenames, deserialization into Python models.
 12. `tests/test_speaker_processor.py` — **5 passed**: Role heuristic rules, patient pattern matching, unknown fallbacks, sequence processing.
-13. `tests/test_asr.py` — **5 passed**: Empty file detection, missing file handling, corrupted file handling, mocked Faster-Whisper inference.
+13. `tests/test_asr.py` — **6 passed**: Empty file detection, missing file handling, corrupted file handling, mocked Faster-Whisper inference, offline bundled directory loading.
 14. `tests/test_exporter.py` — **4 passed**: HTML and PDF generation, clinic branding inclusion, ICD-10 table generation, file system verification.
 15. `tests/test_record_search.py` — **6 passed**: Empty directory handling, valid record indexing, batch summary filtering, multi-field search, status filtering, clinical entity filters, date ranges.
 16. `tests/test_batch_processor.py` — **2 passed**: Empty folder handling, mixed valid/invalid audio ingestion with summary generation.

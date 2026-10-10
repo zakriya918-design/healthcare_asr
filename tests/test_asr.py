@@ -70,3 +70,20 @@ def test_transcribe_mocked_model(tmp_path):
     assert segments[0].text == "Patient reports cough for two days."
     assert segments[0].start_time == 0.0
     assert segments[0].end_time == 1.8
+
+
+def test_load_model_from_offline_dir(tmp_path):
+    # Setup dummy offline model directory with model.bin
+    offline_model_dir = tmp_path / "tiny.en"
+    offline_model_dir.mkdir(parents=True)
+    (offline_model_dir / "model.bin").write_bytes(b"dummy_weights")
+
+    with patch("src.utils.paths.get_models_dir", return_value=tmp_path):
+        with patch("faster_whisper.WhisperModel") as mock_wm_cls:
+            transcriber = WhisperTranscriber(model_size="tiny.en")
+            transcriber.load_model()
+            assert transcriber.is_model_loaded is True
+            mock_wm_cls.assert_called_once()
+            call_kwargs = mock_wm_cls.call_args[1]
+            assert call_kwargs["model_size_or_path"] == str(offline_model_dir)
+
