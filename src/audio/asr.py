@@ -134,11 +134,13 @@ class WhisperTranscriber:
         self,
         audio_path: Union[str, Path],
         progress_callback: Optional[Callable[[str], None]] = None,
-        enhance_audio: bool = False
+        enhance_audio: bool = False,
+        vad_filter: bool = True,
     ) -> Tuple[str, List[TranscriptSegment]]:
         """
         Transcribes an audio file (WAV, FLAC, etc.) into full text and structured segments.
         Optionally applies speech enhancement / noise gating DSP prior to ASR.
+        Applies Voice Activity Detection (VAD) via Silero to suppress silence and non-speech.
         Returns:
             (full_transcript_text, list_of_TranscriptSegment)
         """
@@ -159,12 +161,13 @@ class WhisperTranscriber:
             progress_callback(f"Transcribing {path.name}...")
 
         try:
-            # Transcribe the float32 waveform directly
+            # Transcribe the float32 waveform directly with Voice Activity Detection (VAD)
             segments_gen, info = self._model.transcribe(
                 audio_waveform,
                 beam_size=5,
                 language="en",
-                condition_on_previous_text=False
+                condition_on_previous_text=False,
+                vad_filter=vad_filter,
             )
 
             full_text_pieces = []

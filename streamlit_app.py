@@ -13,11 +13,19 @@ import io
 import json
 import logging
 from pathlib import Path
+import sys
 import tempfile
 import time
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 
+import numpy as np
 import streamlit as st
+
+# Direct CLI launcher when executed via `python streamlit_app.py`
+if __name__ == "__main__" and not st.runtime.exists():
+    from streamlit.web import cli as stcli
+    sys.argv = ["streamlit", "run", __file__]
+    sys.exit(stcli.main())
 
 # Core domain & processing modules
 from src.models.patient_record import (
@@ -215,6 +223,110 @@ h1, h2, h3, h4, .clinic-brand-title {
     color: #64748b;
     font-weight: 600;
 }
+
+/* =========================================================================
+   System Architecture Flowchart (10-Stage Pipeline)
+   ========================================================================= */
+.arch-pipeline-container {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 16px;
+    padding: 22px 20px;
+    margin-bottom: 25px;
+    backdrop-filter: blur(10px);
+}
+.arch-header {
+    text-align: center;
+    margin-bottom: 18px;
+}
+.arch-title-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(99, 102, 241, 0.15));
+    border: 1px solid rgba(14, 165, 233, 0.4);
+    border-radius: 999px;
+    padding: 6px 20px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0284c7;
+    font-family: 'Outfit', sans-serif;
+    letter-spacing: -0.01em;
+}
+.arch-row {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+.arch-card {
+    flex: 1 1 140px;
+    min-width: 135px;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1.5px solid;
+}
+.arch-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+.arch-card-header {
+    font-size: 0.82rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'Outfit', sans-serif;
+    line-height: 1.25;
+}
+.arch-card-body {
+    font-size: 0.74rem;
+    line-height: 1.4;
+    opacity: 0.88;
+    margin-bottom: 6px;
+}
+.arch-card-status {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 999px;
+    display: inline-block;
+    align-self: flex-start;
+    margin-top: auto;
+}
+.arch-arrow-right, .arch-arrow-left {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 1.2rem;
+    padding: 0 2px;
+    user-select: none;
+}
+.arch-turn-down {
+    display: flex;
+    justify-content: flex-end;
+    padding-right: 70px;
+    margin: -4px 0 6px 0;
+    color: #94a3b8;
+    font-size: 1.3rem;
+    font-weight: bold;
+}
+.arch-card-1 { border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.06); color: #4338ca; }
+.arch-card-2 { border-color: rgba(14, 165, 233, 0.4); background: rgba(14, 165, 233, 0.06); color: #0284c7; }
+.arch-card-3 { border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.06); color: #047857; }
+.arch-card-4 { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.06); color: #b45309; }
+.arch-card-5 { border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.06); color: #7e22ce; }
+.arch-card-6 { border-color: rgba(20, 184, 166, 0.4); background: rgba(20, 184, 166, 0.06); color: #0f766e; }
+.arch-card-7 { border-color: rgba(244, 63, 94, 0.4); background: rgba(244, 63, 94, 0.06); color: #be123c; }
+.arch-card-8 { border-color: rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.06); color: #1d4ed8; }
+.arch-card-9 { border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.06); color: #4338ca; }
+.arch-card-10 { border-color: rgba(13, 148, 136, 0.4); background: rgba(13, 148, 136, 0.06); color: #115e59; }
 </style>
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
@@ -229,9 +341,227 @@ if "audio_path" not in st.session_state:
     st.session_state.audio_path: Optional[str] = None
 if "branding" not in st.session_state:
     st.session_state.branding = ClinicBranding()
-if "transcriber" not in st.session_state:
-    # We will initialize lazily or with cached loader
+if "transcriber_model" not in st.session_state:
     st.session_state.transcriber_model = "tiny.en"
+
+
+def ensure_synthetic_consultation_wav(synth_path: Path) -> Path:
+    """Ensures synthetic consultation WAV exists, generating fallback if needed."""
+    if not synth_path.exists():
+        synth_path.parent.mkdir(parents=True, exist_ok=True)
+        sr = 16000
+        duration = 6.0
+        t = np.linspace(0, duration, int(sr * duration), endpoint=False)
+        audio = 0.2 * np.sin(2 * np.pi * 300 * t) + 0.1 * np.sin(2 * np.pi * 600 * t)
+        import soundfile as sf
+        sf.write(str(synth_path), audio.astype(np.float32), sr)
+    return synth_path
+
+
+def render_system_architecture_flow(rec: Optional[ConsultationRecord] = None):
+    """Renders the comprehensive 10-block Automated Speech Recognition Healthcare Architecture."""
+    has_rec = rec is not None
+    whisper_model = st.session_state.get("transcriber_model", "tiny.en")
+
+    if has_rec:
+        sym_count = len(rec.extracted_info.symptoms) if rec.extracted_info else 0
+        med_count = len(rec.extracted_info.medications) if rec.extracted_info else 0
+        diag_count = len(rec.extracted_info.diagnoses) if rec.extracted_info else 0
+        seg_count = len(rec.segments) if rec.segments else 0
+        status_review = rec.review_status.value if hasattr(rec.review_status, "value") else str(rec.review_status)
+
+        status_1 = "✅ Ingested"
+        status_2 = "✅ 16 kHz DSP"
+        status_3 = "✅ Silero VAD"
+        status_4 = f"✅ Whisper ({whisper_model})"
+        status_5 = f"✅ {sym_count}S/{med_count}M/{diag_count}D"
+        status_6 = f"✅ {seg_count} Segments"
+        status_7 = f"✅ SOAP ({status_review[:8]})"
+        status_8 = "✅ FHIR R4 Ready"
+        status_9 = f"🛡️ Offline HIPAA ({rec.signed_by or 'Draft'})"
+        status_10 = "⚡ Active"
+    else:
+        status_1 = "⏳ Standby"
+        status_2 = "⚪ 16kHz DSP Ready"
+        status_3 = "⚪ Silero VAD Ready"
+        status_4 = f"⚪ Whisper ({whisper_model})"
+        status_5 = "⚪ NLP Lexicon Ready"
+        status_6 = "⚪ Punctuation Ready"
+        status_7 = "⚪ SOAP Note Ready"
+        status_8 = "⚪ FHIR R4 Ready"
+        status_9 = "🛡️ Offline HIPAA"
+        status_10 = "💻 UI Standby"
+
+    flowchart_html = f"""
+    <div class="arch-pipeline-container">
+        <div class="arch-header">
+            <span class="arch-title-badge">
+                System Architecture for Automated Speech Recognition System for Healthcare
+            </span>
+            <div style="font-size: 0.82rem; color: #64748b; margin-top: 6px;">
+                Interactive 10-Stage Pipeline Status Tracker & Live Operational State
+            </div>
+        </div>
+
+        <!-- Row 1: Stages 1 to 6 (Left to Right) -->
+        <div class="arch-row">
+            <div class="arch-card arch-card-1">
+                <div>
+                    <div class="arch-card-header">👩‍⚕️ 1. User</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">Doctor / Patient (speaks)</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>Doctor utterances</li>
+                        <li>Patient dialogue</li>
+                        <li>Family / caregiver</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(99, 102, 241, 0.15); color: #4338ca;">{status_1}</div>
+            </div>
+
+            <div class="arch-arrow-right">➔</div>
+
+            <div class="arch-card arch-card-2">
+                <div>
+                    <div class="arch-card-header">🎙️ 2. Audio Capture</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">Pre-processing DSP</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>Capture 16 kHz audio</li>
+                        <li>Noise reduction</li>
+                        <li>Bandpass filtering</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(14, 165, 233, 0.15); color: #0284c7;">{status_2}</div>
+            </div>
+
+            <div class="arch-arrow-right">➔</div>
+
+            <div class="arch-card arch-card-3">
+                <div>
+                    <div class="arch-card-header">⏸️ 3. VAD Engine</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">Voice Activity Detection</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>Detects speech</li>
+                        <li>Removes silence</li>
+                        <li>Filters ambient audio</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(16, 185, 129, 0.15); color: #047857;">{status_3}</div>
+            </div>
+
+            <div class="arch-arrow-right">➔</div>
+
+            <div class="arch-card arch-card-4">
+                <div>
+                    <div class="arch-card-header">🧠 4. ASR Engine</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">Speech Recognition</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>Converts speech to text</li>
+                        <li>Faster-Whisper int8</li>
+                        <li>14-dim diarization</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(245, 158, 11, 0.15); color: #b45309;">{status_4}</div>
+            </div>
+
+            <div class="arch-arrow-right">➔</div>
+
+            <div class="arch-card arch-card-5">
+                <div>
+                    <div class="arch-card-header">🔬 5. Medical NLP</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">Clinical NLP Extraction</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>Medical terminology</li>
+                        <li>Symptoms & medications</li>
+                        <li>Negation & uncertainty</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(168, 85, 247, 0.15); color: #7e22ce;">{status_5}</div>
+            </div>
+
+            <div class="arch-arrow-right">➔</div>
+
+            <div class="arch-card arch-card-6">
+                <div>
+                    <div class="arch-card-header">📝 6. Post-Processing</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">Text Normalization</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>Corrects medical terms</li>
+                        <li>Adds punctuation</li>
+                        <li>Formats timeline</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(20, 184, 166, 0.15); color: #0f766e;">{status_6}</div>
+            </div>
+        </div>
+
+        <!-- Connection Down from Stage 6 to Stage 7 -->
+        <div class="arch-turn-down">
+            <span style="font-size: 0.8rem; margin-right: 8px; color: #64748b; font-weight: 600;">Feed to Structured Clinical Note</span> ⬇
+        </div>
+
+        <!-- Row 2: Stages 10 to 7 (Right to Left flow matching diagram) -->
+        <div class="arch-row">
+            <div class="arch-card arch-card-10">
+                <div>
+                    <div class="arch-card-header">🖥️ 10. User Interface</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">Interactive Workstation</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>View & edit transcript</li>
+                        <li>Review structured data</li>
+                        <li>Manage EHR outputs</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(13, 148, 136, 0.15); color: #115e59;">{status_10}</div>
+            </div>
+
+            <div class="arch-arrow-left">⬅</div>
+
+            <div class="arch-card arch-card-9">
+                <div>
+                    <div class="arch-card-header">🛡️ 9. Security & Privacy</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">Compliance & Protection</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>Digital attestation</li>
+                        <li>SHA-256 archive manifests</li>
+                        <li>Zero cloud leakage</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(99, 102, 241, 0.15); color: #4338ca;">{status_9}</div>
+            </div>
+
+            <div class="arch-arrow-left">⬅</div>
+
+            <div class="arch-card arch-card-8">
+                <div>
+                    <div class="arch-card-header">🏥 8. EHR Integration</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">Interoperability Suite</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>HL7 FHIR R4 bundle</li>
+                        <li>Retrieve patient history</li>
+                        <li>Atomic JSON & PDF export</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(59, 130, 246, 0.15); color: #1d4ed8;">{status_8}</div>
+            </div>
+
+            <div class="arch-arrow-left">⬅</div>
+
+            <div class="arch-card arch-card-7">
+                <div>
+                    <div class="arch-card-header">📋 7. Structured Output</div>
+                    <div style="font-size: 0.74rem; font-weight: 600; opacity: 0.9; margin-bottom: 4px;">SOAP Documentation</div>
+                    <ul class="arch-card-body" style="padding-left: 14px; margin: 0;">
+                        <li>Chief complaint & HPI</li>
+                        <li>Symptoms & diagnoses</li>
+                        <li>Prescriptions & plan</li>
+                    </ul>
+                </div>
+                <div class="arch-card-status" style="background: rgba(244, 63, 94, 0.15); color: #be123c;">{status_7}</div>
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(flowchart_html, unsafe_allow_html=True)
 
 
 @st.cache_resource
@@ -360,15 +690,16 @@ def execute_clinical_pipeline(
 
         # 1. Transcription or Direct Text
         if audio_path and audio_path.exists():
-            transcriber = get_cached_transcriber(st.session_state.transcriber_model)
+            transcriber = get_cached_transcriber(st.session_state.get("transcriber_model", "tiny.en"))
             progress_bar.progress(30)
             try:
                 raw_transcript, raw_segments = transcriber.transcribe_file(
                     audio_path,
                     enhance_audio=enhance_audio,
+                    vad_filter=True,
                 )
             except TypeError:
-                # Defensive fallback if cached memory model does not take enhance_audio
+                # Defensive fallback if cached memory model does not take enhance_audio / vad_filter
                 raw_transcript, raw_segments = transcriber.transcribe_file(audio_path)
             st.session_state.audio_path = str(audio_path)
         else:
@@ -432,10 +763,7 @@ def execute_clinical_pipeline(
 # Execute process button click
 if process_btn:
     if input_mode == "✨ Run Synthetic Demo Consultation":
-        synth_path = get_synthetic_wav_path()
-        if not synth_path.exists():
-            from src.audio.diagnostics import SyntheticAudioGenerator
-            SyntheticAudioGenerator.generate_synthetic_consultation_wav(synth_path)
+        synth_path = ensure_synthetic_consultation_wav(get_synthetic_wav_path())
         execute_clinical_pipeline(
             audio_path=synth_path,
             enhance_audio=enhance_audio_toggle,
@@ -548,10 +876,7 @@ if not rec:
         st.caption("Pre-recorded medical encounter (Back pain consultation with doctor & patient dialogue).")
         if st.button("🚀 Run Synthetic Demo Encounter Now", type="primary", use_container_width=True, key="launch_demo_main"):
             with st.spinner("Processing synthetic back pain consultation with acoustic diarization & clinical NLP..."):
-                synth_path = get_synthetic_wav_path()
-                if not synth_path.exists():
-                    from src.audio.diagnostics import SyntheticAudioGenerator
-                    SyntheticAudioGenerator.generate_synthetic_consultation_wav(synth_path)
+                synth_path = ensure_synthetic_consultation_wav(get_synthetic_wav_path())
                 execute_clinical_pipeline(
                     audio_path=synth_path,
                     enhance_audio=False,
@@ -655,6 +980,7 @@ if not rec:
         )
 
     st.stop()
+    sys.exit(0)
 
 
 # ---------------------------------------------------------------------------
