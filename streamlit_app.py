@@ -923,61 +923,7 @@ if not rec:
                 st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 🔄 End-to-End Clinical Documentation Workflow")
-
-    w1, w2, w3, w4 = st.columns(4)
-    with w1:
-        st.markdown(
-            """
-            <div class="medical-card" style="height: 100%;">
-                <div style="font-size: 1.8rem; margin-bottom: 6px;">🎙️</div>
-                <strong style="font-size: 1.05rem;">1. Multi-Speaker ASR</strong>
-                <p style="font-size: 0.88rem; color: #64748b; margin-top: 8px;">
-                    14-dimensional acoustic voiceprints with dynamic K-means clustering (2–4 persons: Doctor, Patient, Caregiver, Nurse).
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with w2:
-        st.markdown(
-            """
-            <div class="medical-card" style="height: 100%;">
-                <div style="font-size: 1.8rem; margin-bottom: 6px;">🧠</div>
-                <strong style="font-size: 1.05rem;">2. Clinical NLP & Negation</strong>
-                <p style="font-size: 0.88rem; color: #64748b; margin-top: 8px;">
-                    Extracts symptoms with negation sensitivity (e.g. 'denies chest pain'), vital signs matrix, home medications, and allergies.
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with w3:
-        st.markdown(
-            """
-            <div class="medical-card" style="height: 100%;">
-                <div style="font-size: 1.8rem; margin-bottom: 6px;">📋</div>
-                <strong style="font-size: 1.05rem;">3. SOAP Note & ICD-10</strong>
-                <p style="font-size: 0.88rem; color: #64748b; margin-top: 8px;">
-                    Deterministic draft compiling Subjective (CC, HPI), Objective, Assessment, and Plan with automated ICD-10-CM code matching.
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with w4:
-        st.markdown(
-            """
-            <div class="medical-card" style="height: 100%;">
-                <div style="font-size: 1.8rem; margin-bottom: 6px;">📦</div>
-                <strong style="font-size: 1.05rem;">4. Attestation & FHIR Export</strong>
-                <p style="font-size: 0.88rem; color: #64748b; margin-top: 8px;">
-                    Physician digital signature verification with 1-click export to HL7 FHIR R4 JSON, ReportLab PDF, and secure ZIP bundles.
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    render_system_architecture_flow(rec=None)
 
     st.stop()
     sys.exit(0)
@@ -986,6 +932,9 @@ if not rec:
 # ---------------------------------------------------------------------------
 # Dashboard Tabs
 # ---------------------------------------------------------------------------
+with st.expander("🏗️ System Architecture Pipeline Tracker (Live Operational Status)", expanded=False):
+    render_system_architecture_flow(rec)
+
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🎙️ Audio & Transcript",
     "🔬 Clinical Extraction",
