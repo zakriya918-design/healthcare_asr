@@ -59,3 +59,38 @@ def test_process_transcript_segments_sequence():
     assert processed[0].speaker_role == SpeakerRole.DOCTOR
     assert processed[1].speaker_role == SpeakerRole.PATIENT
     assert processed[3].speaker_role == SpeakerRole.DOCTOR
+
+
+def test_caregiver_proxy_discrimination():
+    # Caregiver speaking about patient using 3rd person proxy
+    role_cg1, conf1, _ = estimate_speaker_role("Doctor, my mother was very confused yesterday and she fell in the hallway.")
+    assert role_cg1 == SpeakerRole.CAREGIVER
+    assert conf1 >= 0.85
+
+    role_cg2, conf2, _ = estimate_speaker_role("I drove my father in because he couldn't stand on his own.")
+    assert role_cg2 == SpeakerRole.CAREGIVER
+    assert conf2 >= 0.70
+
+    # Patient speaking for themselves
+    role_pt, conf_pt, _ = estimate_speaker_role("Doctor, my lower back has been hurting since yesterday.")
+    assert role_pt == SpeakerRole.PATIENT
+    assert conf_pt >= 0.85
+
+    # Doctor inquiry starting with 'Doctor,'
+    role_doc, conf_doc, _ = estimate_speaker_role("Doctor, how long have you had this fever?")
+    assert role_doc == SpeakerRole.DOCTOR
+    assert conf_doc >= 0.85
+
+
+def test_three_way_dialogue_segregation():
+    segments = [
+        TranscriptSegment(id=1, text="Good morning Mr. Davis, how are you feeling today?", start_time=0.0, end_time=2.5),
+        TranscriptSegment(id=2, text="I feel very weak and my chest hurts when I breathe.", start_time=3.1, end_time=6.4),
+        TranscriptSegment(id=3, text="My father hasn't eaten since yesterday and we are very worried about him.", start_time=7.0, end_time=11.2),
+        TranscriptSegment(id=4, text="Let me listen to your heart and lungs, and order a chest x-ray.", start_time=12.0, end_time=16.1),
+    ]
+    processed = process_transcript_segments(segments)
+    assert processed[0].speaker_role == SpeakerRole.DOCTOR
+    assert processed[1].speaker_role == SpeakerRole.PATIENT
+    assert processed[2].speaker_role == SpeakerRole.CAREGIVER
+    assert processed[3].speaker_role == SpeakerRole.DOCTOR

@@ -65,10 +65,18 @@ class TranscriptSegment:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> TranscriptSegment:
         role = data.get("speaker_role", SpeakerRole.UNKNOWN.value)
-        try:
-            speaker_role = SpeakerRole(role)
-        except (ValueError, TypeError):
-            speaker_role = SpeakerRole.UNKNOWN
+        speaker_role = SpeakerRole.UNKNOWN
+        if isinstance(role, SpeakerRole):
+            speaker_role = role
+        elif isinstance(role, str):
+            try:
+                speaker_role = SpeakerRole(role)
+            except (ValueError, TypeError):
+                role_lower = role.strip().lower()
+                for member in SpeakerRole:
+                    if member.value.lower() == role_lower or member.name.lower() == role_lower:
+                        speaker_role = member
+                        break
 
         return cls(
             id=int(data.get("id", 0)),

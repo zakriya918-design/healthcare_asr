@@ -136,11 +136,13 @@ class WhisperTranscriber:
         progress_callback: Optional[Callable[[str], None]] = None,
         enhance_audio: bool = False,
         vad_filter: bool = True,
+        word_timestamps: bool = True,
     ) -> Tuple[str, List[TranscriptSegment]]:
         """
         Transcribes an audio file (WAV, FLAC, etc.) into full text and structured segments.
         Optionally applies speech enhancement / noise gating DSP prior to ASR.
         Applies Voice Activity Detection (VAD) via Silero to suppress silence and non-speech.
+        Uses word-level alignment to determine exact dialogue start and end boundaries for each speaker.
         Returns:
             (full_transcript_text, list_of_TranscriptSegment)
         """
@@ -161,13 +163,14 @@ class WhisperTranscriber:
             progress_callback(f"Transcribing {path.name}...")
 
         try:
-            # Transcribe the float32 waveform directly with Voice Activity Detection (VAD)
+            # Transcribe the float32 waveform directly with Voice Activity Detection (VAD) and word timestamps
             segments_gen, info = self._model.transcribe(
                 audio_waveform,
                 beam_size=5,
                 language="en",
                 condition_on_previous_text=False,
                 vad_filter=vad_filter,
+                word_timestamps=word_timestamps,
             )
 
             full_text_pieces = []
@@ -175,16 +178,63 @@ class WhisperTranscriber:
             seg_id = 1
 
             for segment in segments_gen:
-                text = segment.text.strip()
-                if text:
-                    full_text_pieces.append(text)
-                    segments.append(TranscriptSegment(
-                        id=seg_id,
-                        text=text,
-                        start_time=round(segment.start, 2),
-                        end_time=round(segment.end, 2)
-                    ))
-                    seg_id += 1
+                words = getattr(segment, "words", None)
+                if not isinstance(words, (list, tuple)) or len(words) == 0:
+                    text = segment.text.strip()
+                    if text:
+                        full_text_pieces.append(text)
+                        segments.append(TranscriptSegment(
+                            id=seg_id,
+                            text=text,
+                            start_time=round(segment.start, 2),
+                            end_time=round(segment.end, 2)
+                        ))
+                        seg_id += 1
+                    continue
+
+                # Sub-second dialogue turn grouping based on pause gaps and conversational turn tags
+                current_words = []
+                for i, word in enumerate(words):
+                    current_words.append(word)
+                    is_last = (i == len(words) - 1)
+                    if not is_last:
+                        next_word = words[i + 1]
+                        gap = next_word.start - word.end
+                        has_punct = any(p in word.word for p in [".", "?", "!", ":"])
+                        next_clean = next_word.word.strip().lower()
+                        next_is_label = next_clean in [
+                            "doctor:", "patient:", "caregiver:", "nurse:",
+                            "doctor,", "patient,", "caregiver,", "nurse,"
+                        ] or next_clean.startswith(("doctor:", "patient:", "caregiver:", "nurse:"))
+
+                        # Break boundary on:
+                        # 1. Punctuation followed by audible speaker pause >= 0.40s
+                        # 2. Significant pause gap >= 0.75s
+                        # 3. Explicit speaker tag marker
+                        if (gap >= 0.40 and has_punct) or gap >= 0.75 or next_is_label:
+                            turn_text = " ".join(w.word.strip() for w in current_words).strip()
+                            if turn_text:
+                                full_text_pieces.append(turn_text)
+                                segments.append(TranscriptSegment(
+                                    id=seg_id,
+                                    text=turn_text,
+                                    start_time=round(current_words[0].start, 2),
+                                    end_time=round(current_words[-1].end, 2),
+                                ))
+                                seg_id += 1
+                            current_words = []
+
+                if current_words:
+                    turn_text = " ".join(w.word.strip() for w in current_words).strip()
+                    if turn_text:
+                        full_text_pieces.append(turn_text)
+                        segments.append(TranscriptSegment(
+                            id=seg_id,
+                            text=turn_text,
+                            start_time=round(current_words[0].start, 2),
+                            end_time=round(current_words[-1].end, 2),
+                        ))
+                        seg_id += 1
 
             full_transcript = " ".join(full_text_pieces).strip()
 

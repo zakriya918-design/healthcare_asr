@@ -22,6 +22,7 @@ from src.models.patient_record import SpeakerRole, TranscriptSegment
 from src.processing.speaker_processor import (
     estimate_speaker_role,
     process_transcript_segments,
+    disentangle_and_heal_transcript_segments,
     PREFIX_DOCTOR_RE,
     PREFIX_PATIENT_RE,
     PREFIX_CAREGIVER_RE,
@@ -95,7 +96,20 @@ def extract_acoustic_features(signal: np.ndarray, sr: int = 16000) -> np.ndarray
                     peak_idx = int(np.argmax(search_win))
                     lag = min_lag + peak_idx
                     if lag > 0 and corr[lag] > 0.3 * corr[0]:
-                        pitches.append(sr / lag)
+                        if 0 < lag < len(corr) - 1:
+                            alpha = float(corr[lag - 1])
+                            beta = float(corr[lag])
+                            gamma = float(corr[lag + 1])
+                            denom = 2.0 * (2.0 * beta - alpha - gamma)
+                            if abs(denom) > 1e-6:
+                                delta = (alpha - gamma) / denom
+                                refined_lag = lag + delta
+                            else:
+                                refined_lag = float(lag)
+                        else:
+                            refined_lag = float(lag)
+                        if refined_lag > 0:
+                            pitches.append(sr / refined_lag)
 
     pitch_mean = float(np.mean(pitches)) if pitches else 0.0
     pitch_std = float(np.std(pitches)) if len(pitches) > 1 else 0.0
@@ -169,15 +183,16 @@ def score_cluster_conversational_profile(texts: List[str]) -> Dict[SpeakerRole, 
     re_3rd = re.compile(r"\b(?:he|he's|him|his|she|she's|her|hers|they|them|their|my\s+(?:mother|father|husband|wife|son|daughter|child|mom|dad|parent))\b", re.IGNORECASE)
     
     re_directive = re.compile(
-        r"\b(?:order|prescribe|recommend|suggest|examine|listen\s+to|check\s+your|take\s+this|avoid|schedule|follow\s*up|come\s+back|see\s+me|return\s+to|let's\s+look|let\s+me\s+listen)\b",
+        r"\b(?:order|prescribe|recommend|suggest|examine|listen\s+to|check\s+your|take\s+this|avoid|schedule|follow\s*up|come\s+back|see\s+me|return\s+to|let's\s+look|let\s+me\s+listen|let\s+me\s+examine)\b",
         re.IGNORECASE
     )
     re_symptom = re.compile(
-        r"\b(?:pain|hurt|hurts|aching|sore|discomfort|bothering|started|noticed|feeling|numb|swelling|tired|fatigue|cough|fever|trouble|hard\s+to|can't\s+sleep|struggling)\b",
+        r"\b(?:pain|hurt|hurts|aching|sore|discomfort|bothering|started|noticed|feeling|numb|swelling|tired|fatigue|cough|fever|trouble|hard\s+to|can't\s+sleep|struggling|headache|headaches|fell|confused)\b",
         re.IGNORECASE
     )
+    # Genuine vocative addressing the doctor (e.g. "Doctor, I...", "thank you, doctor", "good morning, doctor")
     re_address_doc = re.compile(
-        r"(?:,\s*(?:dr\.?|doctor)\b|\b(?:dr\.?|doctor)\s*[,.?!]|\bthank\s+you\s*,?\s*(?:dr\.?|doctor)\b|\bhello\s*,?\s*(?:dr\.?|doctor)\b|\bgood\s+morning\s*,?\s*(?:dr\.?|doctor)\b)",
+        r"(?:,\s*(?:dr\.?|doctor)\b|\bthank\s+you\s*,?\s*(?:dr\.?|doctor)\b|\bhello\s*,?\s*(?:dr\.?|doctor)\b|\bgood\s+morning\s*,?\s*(?:dr\.?|doctor)\b|\byes\s*,?\s*(?:dr\.?|doctor)\b|^\s*(?:dr\.?|doctor)\s*,\s*(?:i\b|my\b|we\b|he\b|she\b))",
         re.IGNORECASE
     )
     re_address_pt = re.compile(
@@ -210,28 +225,33 @@ def score_cluster_conversational_profile(texts: List[str]) -> Dict[SpeakerRole, 
     norm = max(1.0, total_words / 10.0)
 
     doc_score = (
-        (cnt_2nd / norm) * 2.0 +
-        (cnt_questions / n_utts) * 2.5 +
-        (cnt_directives / norm) * 3.0 +
-        (cnt_address_pt * 4.0) -
-        (cnt_1st / norm) * 0.8 -
-        (cnt_address_doc * 5.0)
+        (cnt_2nd / norm) * 2.5 +
+        (cnt_questions / n_utts) * 3.5 +
+        (cnt_directives / norm) * 3.5 +
+        (cnt_address_pt * 5.0) -
+        (cnt_address_doc * 6.0) -
+        (cnt_3rd / norm) * 2.0
     )
 
     pt_score = (
-        (cnt_1st / norm) * 2.2 +
+        (cnt_1st / norm) * 2.5 +
         (cnt_symptoms / norm) * 2.5 +
-        (cnt_address_doc * 4.0) -
-        (cnt_directives / norm) * 2.0 -
+        (cnt_address_doc * 3.0) -
+        (cnt_3rd / norm) * 4.0 -
+        (cnt_directives / norm) * 3.0 -
         (cnt_address_pt * 5.0)
     )
 
-    cg_score = (
-        (cnt_3rd / norm) * 3.5 +
-        (cnt_symptoms / norm) * 1.5 +
-        (cnt_address_doc * 3.0) -
-        (cnt_address_pt * 4.0)
-    )
+    if cnt_3rd > 0:
+        cg_score = (
+            (cnt_3rd / norm) * 5.0 +
+            (cnt_symptoms / norm) * 1.5 +
+            (cnt_address_doc * 2.0) -
+            (cnt_address_pt * 5.0) -
+            (cnt_directives / norm) * 3.0
+        )
+    else:
+        cg_score = 0.01
 
     nurse_score = (
         (cnt_triage * 4.0) +
@@ -247,6 +267,24 @@ def score_cluster_conversational_profile(texts: List[str]) -> Dict[SpeakerRole, 
     }
 
 
+FEATURE_WEIGHTS = np.array([
+    2.5,   # 0: Pitch F0 mean
+    2.0,   # 1: Spectral Centroid
+    1.5,   # 2: Spectral Spread
+    1.0,   # 3: Spectral Rolloff 85%
+    1.0,   # 4: ZCR
+    0.15,  # 5: RMS Energy (attenuate volume level variations)
+    1.0,   # 6: Spectral Rolloff 50%
+    1.8,   # 7: Subband 1 (70-300 Hz)
+    1.8,   # 8: Subband 2 (300-1000 Hz)
+    1.8,   # 9: Subband 3 (1000-3000 Hz)
+    0.3,   # 10: Subband 4 (high-frequency hiss)
+    1.2,   # 11: Pitch std
+    2.5,   # 12: Pitch F0 median
+    1.0,   # 13: Voiced ratio
+], dtype=np.float32)
+
+
 def cluster_segments_by_voice(
     features: np.ndarray,
     num_speakers: Union[int, str] = "auto",
@@ -258,10 +296,10 @@ def cluster_segments_by_voice(
     if n_samples < 2:
         return np.zeros(n_samples, dtype=int)
 
-    # Standardize features
+    # Standardize features with perceptual timbre & pitch weighting
     mean = np.mean(features, axis=0)
     std = np.std(features, axis=0) + 1e-8
-    norm_x = (features - mean) / std
+    norm_x = ((features - mean) / std) * FEATURE_WEIGHTS
 
     # Determine candidate cluster counts
     if isinstance(num_speakers, int) and num_speakers >= 2:
@@ -336,13 +374,12 @@ def diarize_consultation_audio(
     if not segments:
         return []
 
-    # If no audio provided or invalid path, use enhanced linguistic processor
+    # Disentangle composite multi-speaker turns and heal severed mid-sentence fragments
+    segments = disentangle_and_heal_transcript_segments(segments)
+
+    # If no audio provided or invalid path, return healed and contextually annotated segments
     if not audio_path or not Path(audio_path).is_file():
-        processed = process_transcript_segments(segments)
-        for idx, seg in enumerate(processed):
-            if not seg.speaker_id:
-                seg.speaker_id = seg.speaker_role.value if seg.speaker_role != SpeakerRole.UNKNOWN else f"Speaker {(idx % 2) + 1}"
-        return processed
+        return segments
 
     try:
         data, sr = sf.read(str(audio_path), dtype="float32")
@@ -350,11 +387,7 @@ def diarize_consultation_audio(
             data = data.mean(axis=1)
     except Exception as e:
         logger.warning(f"Could not read audio file for diarization ({e}); falling back to linguistic processor.")
-        processed = process_transcript_segments(segments)
-        for idx, seg in enumerate(processed):
-            if not seg.speaker_id:
-                seg.speaker_id = seg.speaker_role.value if seg.speaker_role != SpeakerRole.UNKNOWN else f"Speaker {(idx % 2) + 1}"
-        return processed
+        return segments
 
     total_samples = len(data)
     feature_list = []
@@ -371,11 +404,7 @@ def diarize_consultation_audio(
 
     # Need at least 2 valid segments to cluster
     if len(feature_list) < 2:
-        processed = process_transcript_segments(segments)
-        for idx, seg in enumerate(processed):
-            if not seg.speaker_id:
-                seg.speaker_id = seg.speaker_role.value if seg.speaker_role != SpeakerRole.UNKNOWN else f"Speaker {(idx % 2) + 1}"
-        return processed
+        return segments
 
     feature_matrix = np.array(feature_list)
     cluster_labels = cluster_segments_by_voice(feature_matrix, num_speakers=num_speakers)
@@ -409,11 +438,24 @@ def diarize_consultation_audio(
             if seg_clusters.get(idx) == c:
                 role, conf, _ = estimate_speaker_role(segments[idx].text)
                 if role in cluster_evidence[c] and conf >= 0.70:
-                    cluster_evidence[c][role] += conf * 2.0
+                    cluster_evidence[c][role] += conf * 3.0
 
     # Global optimal assignment of unique clusters to distinct roles
-    role_candidates = [SpeakerRole.DOCTOR, SpeakerRole.PATIENT, SpeakerRole.CAREGIVER, SpeakerRole.NURSE]
     k_clusters = len(unique_clusters)
+    if k_clusters == 2:
+        has_cg = any(cluster_evidence[c][SpeakerRole.CAREGIVER] > 2.0 for c in unique_clusters)
+        has_nurse = any(cluster_evidence[c][SpeakerRole.NURSE] > 2.0 for c in unique_clusters)
+        if not has_cg and not has_nurse:
+            role_candidates = [SpeakerRole.DOCTOR, SpeakerRole.PATIENT]
+        elif has_cg and not has_nurse:
+            role_candidates = [SpeakerRole.DOCTOR, SpeakerRole.PATIENT, SpeakerRole.CAREGIVER]
+        elif has_nurse and not has_cg:
+            role_candidates = [SpeakerRole.DOCTOR, SpeakerRole.PATIENT, SpeakerRole.NURSE]
+        else:
+            role_candidates = [SpeakerRole.DOCTOR, SpeakerRole.PATIENT, SpeakerRole.CAREGIVER, SpeakerRole.NURSE]
+    else:
+        role_candidates = [SpeakerRole.DOCTOR, SpeakerRole.PATIENT, SpeakerRole.CAREGIVER, SpeakerRole.NURSE]
+
     best_mapping = {}
     best_score = -1.0
 
@@ -441,7 +483,7 @@ def diarize_consultation_audio(
             else:
                 cluster_role_map[c] = SpeakerRole.NURSE
 
-    # Annotate all segments consistently with physical speaker_id and assigned acoustic role
+    # Annotate all segments with multi-modal acoustic + linguistic fusion
     for idx, seg in enumerate(segments):
         cluster = seg_clusters.get(idx)
         ling_role, ling_conf, ling_reason = estimate_speaker_role(seg.text)
@@ -450,20 +492,35 @@ def diarize_consultation_audio(
             seg.speaker_id = f"Speaker {cluster + 1}"
             acoustic_role = cluster_role_map[cluster]
 
-            # Explicit prefixes typed by user ("Doctor:", "Patient:", etc.) take highest precedence
-            if ling_conf >= 0.95 and (PREFIX_DOCTOR_RE.match(seg.text) or PREFIX_PATIENT_RE.match(seg.text) or PREFIX_CAREGIVER_RE.match(seg.text) or PREFIX_NURSE_RE.match(seg.text)):
+            # Decisive clinical phrasing or explicit script prefix takes precedence
+            if ling_conf >= 0.60 and ling_role != SpeakerRole.UNKNOWN:
+                seg.speaker_role = ling_role
+                seg.role_confidence = max(ling_conf, 0.88)
+                seg.speaker_reason = f"Linguistic {ling_role.value.lower()} phrasing ({ling_reason})"
+            else:
+                # Acoustic voice cluster role for brief or ambiguous utterances
+                seg.speaker_role = acoustic_role
+                seg.role_confidence = 0.80
+                seg.speaker_reason = f"Acoustic {seg.speaker_id} voice cluster mapped to {acoustic_role.value.lower()}"
+        else:
+            if ling_role != SpeakerRole.UNKNOWN:
                 seg.speaker_role = ling_role
                 seg.role_confidence = ling_conf
                 seg.speaker_reason = ling_reason
-            else:
-                # Acoustic voice cluster is the invariant ground truth for the speaker
-                seg.speaker_role = acoustic_role
-                seg.role_confidence = 0.88
-                seg.speaker_reason = f"Acoustic {seg.speaker_id} voice cluster mapped to {acoustic_role.value.lower()}"
-        else:
-            seg.speaker_id = ling_role.value if ling_role != SpeakerRole.UNKNOWN else "Speaker"
-            seg.speaker_role = ling_role
-            seg.role_confidence = ling_conf
-            seg.speaker_reason = ling_reason
+
+    # Final contextual pass to resolve any lingering short utterances
+    segments = process_transcript_segments(segments)
+
+    # Harmonize physical speaker_id to aligned clinical role if unassigned
+    for seg in segments:
+        if not seg.speaker_id or seg.speaker_id == "Speaker":
+            if seg.speaker_role == SpeakerRole.DOCTOR:
+                seg.speaker_id = "Speaker 1"
+            elif seg.speaker_role == SpeakerRole.PATIENT:
+                seg.speaker_id = "Speaker 2"
+            elif seg.speaker_role == SpeakerRole.CAREGIVER:
+                seg.speaker_id = "Speaker 3"
+            elif seg.speaker_role == SpeakerRole.NURSE:
+                seg.speaker_id = "Speaker 4"
 
     return segments

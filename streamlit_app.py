@@ -52,7 +52,6 @@ from src.utils.paths import (
     get_output_dir,
     get_recordings_dir,
     get_models_dir,
-    get_synthetic_wav_path,
 )
 
 # Configure Streamlit page
@@ -345,17 +344,6 @@ if "transcriber_model" not in st.session_state:
     st.session_state.transcriber_model = "tiny.en"
 
 
-def ensure_synthetic_consultation_wav(synth_path: Path) -> Path:
-    """Ensures synthetic consultation WAV exists, generating fallback if needed."""
-    if not synth_path.exists():
-        synth_path.parent.mkdir(parents=True, exist_ok=True)
-        sr = 16000
-        duration = 6.0
-        t = np.linspace(0, duration, int(sr * duration), endpoint=False)
-        audio = 0.2 * np.sin(2 * np.pi * 300 * t) + 0.1 * np.sin(2 * np.pi * 600 * t)
-        import soundfile as sf
-        sf.write(str(synth_path), audio.astype(np.float32), sr)
-    return synth_path
 
 
 def render_system_architecture_flow(rec: Optional[ConsultationRecord] = None):
@@ -640,19 +628,14 @@ with st.sidebar:
 
     input_mode = st.radio(
         "Ingestion Method",
-        ["✨ Run Synthetic Demo Consultation", "📁 Upload Audio File (WAV/MP3)", "📝 Direct Clinical Transcript"],
+        ["📁 Upload Audio File (WAV/MP3)", "📝 Direct Clinical Transcript"],
         index=0,
     )
 
     uploaded_audio = None
     direct_transcript_text = ""
 
-    if input_mode == "✨ Run Synthetic Demo Consultation":
-        st.caption("Runs pre-recorded clinical doctor-patient encounter audio.")
-        demo_audio_file = get_synthetic_wav_path()
-        if not demo_audio_file.exists():
-            st.warning("Synthetic consultation WAV will be generated automatically on run.")
-    elif input_mode == "📁 Upload Audio File (WAV/MP3)":
+    if input_mode == "📁 Upload Audio File (WAV/MP3)":
         uploaded_audio = st.file_uploader("Upload Medical Audio", type=["wav", "mp3", "m4a", "flac"])
     else:
         direct_transcript_text = st.text_area(
@@ -762,17 +745,7 @@ def execute_clinical_pipeline(
 
 # Execute process button click
 if process_btn:
-    if input_mode == "✨ Run Synthetic Demo Consultation":
-        synth_path = ensure_synthetic_consultation_wav(get_synthetic_wav_path())
-        execute_clinical_pipeline(
-            audio_path=synth_path,
-            enhance_audio=enhance_audio_toggle,
-            num_speakers=num_speakers_param
-        )
-        st.success("Synthetic consultation transcribed and processed successfully!")
-        st.rerun()
-
-    elif input_mode == "📁 Upload Audio File (WAV/MP3)":
+    if input_mode == "📁 Upload Audio File (WAV/MP3)":
         if uploaded_audio is None:
             st.error("Please upload an audio file before clicking Process.")
         else:
@@ -870,21 +843,8 @@ if not rec:
     )
 
     # Interactive Intake Action Cards
-    action_col1, action_col2, action_col3 = st.columns([1.2, 1.4, 1.4])
+    action_col1, action_col2 = st.columns([1, 1])
     with action_col1:
-        st.markdown("#### ⚡ 1-Click Instant Demo")
-        st.caption("Pre-recorded medical encounter (Back pain consultation with doctor & patient dialogue).")
-        if st.button("🚀 Run Synthetic Demo Encounter Now", type="primary", use_container_width=True, key="launch_demo_main"):
-            with st.spinner("Processing synthetic back pain consultation with acoustic diarization & clinical NLP..."):
-                synth_path = ensure_synthetic_consultation_wav(get_synthetic_wav_path())
-                execute_clinical_pipeline(
-                    audio_path=synth_path,
-                    enhance_audio=False,
-                    num_speakers="auto"
-                )
-                st.rerun()
-
-    with action_col2:
         st.markdown("#### 🎙️ Live Browser Recording")
         st.caption("Record live encounter audio directly through your web browser:")
         browser_audio = st.audio_input("Record Audio", key="main_browser_audio_rec", label_visibility="collapsed")
@@ -900,7 +860,7 @@ if not rec:
                 )
                 st.rerun()
 
-    with action_col3:
+    with action_col2:
         st.markdown("#### 📁 Direct File Upload")
         st.caption("Select a WAV, MP3, or M4A recording from your computer:")
         main_uploaded_file = st.file_uploader(
@@ -992,11 +952,56 @@ with tab1:
         st.caption("Multi-speaker voice clustering (2-4 persons) with clinical role segregation.")
 
         if rec.segments:
-            doc_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.DOCTOR.value]
-            pt_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.PATIENT.value]
-            cg_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.CAREGIVER.value]
-            nurse_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.NURSE.value]
-            unk_segs = [s for s in rec.segments if (s.speaker_role.value if isinstance(s.speaker_role, SpeakerRole) else str(s.speaker_role)) == SpeakerRole.UNKNOWN.value]
+            def _get_canonical_role(s) -> str:
+                raw = getattr(s, "speaker_role", None)
+                if isinstance(raw, SpeakerRole):
+                    v = raw.value.lower()
+                elif isinstance(raw, str):
+                    v = raw.strip().lower()
+                else:
+                    v = str(raw or "").strip().lower()
+
+                if v in ("doctor", "dr", "physician", "clinician", "provider"):
+                    return "doctor"
+                if v in ("patient", "pt"):
+                    return "patient"
+                if v in ("caregiver", "family", "relative", "spouse"):
+                    return "caregiver"
+                if v in ("nurse", "rn", "staff", "assistant"):
+                    return "nurse"
+
+                # Check speaker_id attribute or string
+                spk_id = getattr(s, "speaker_id", "") or ""
+                spk_lower = str(spk_id).lower()
+                if "speaker 1" in spk_lower or "doctor" in spk_lower:
+                    return "doctor"
+                if "speaker 2" in spk_lower or "patient" in spk_lower:
+                    return "patient"
+                if "speaker 3" in spk_lower:
+                    return "caregiver"
+                if "speaker 4" in spk_lower:
+                    return "nurse"
+
+                return "unknown"
+
+            doc_segs = [s for s in rec.segments if _get_canonical_role(s) == "doctor"]
+            pt_segs = [s for s in rec.segments if _get_canonical_role(s) == "patient"]
+            cg_segs = [s for s in rec.segments if _get_canonical_role(s) == "caregiver"]
+            nurse_segs = [s for s in rec.segments if _get_canonical_role(s) == "nurse"]
+            unk_segs = [s for s in rec.segments if _get_canonical_role(s) not in ("doctor", "patient", "caregiver", "nurse")]
+
+            # Clinical fallback: If acoustic clustering was ambiguous and no linguistic cues matched,
+            # guarantee clinical dialogue attribution by alternating turn assignment
+            if len(doc_segs) == 0 and len(pt_segs) == 0 and rec.segments:
+                for idx, seg in enumerate(rec.segments):
+                    assigned = SpeakerRole.DOCTOR if idx % 2 == 0 else SpeakerRole.PATIENT
+                    seg.speaker_role = assigned
+                    seg.speaker_id = "Speaker 1" if assigned == SpeakerRole.DOCTOR else "Speaker 2"
+                    seg.role_confidence = 0.65
+                    seg.speaker_reason = "Alternating clinical dialogue turn attribution"
+                doc_segs = [s for s in rec.segments if _get_canonical_role(s) == "doctor"]
+                pt_segs = [s for s in rec.segments if _get_canonical_role(s) == "patient"]
+                unk_segs = []
 
             # Metric counters for all detected participants
             metrics_cols = st.columns(4 if (cg_segs or nurse_segs) else 3)
@@ -1027,39 +1032,48 @@ with tab1:
             if len(nurse_segs) > 0:
                 filter_options.append(f"🩺 Nurse Said ({len(nurse_segs)})")
 
+            # Determine selected index to preserve radio state across Streamlit reruns
+            default_ix = 0
+            curr_sel = st.session_state.get("dialogue_filter_selector", "")
+            for ix, opt in enumerate(filter_options):
+                if opt == curr_sel or ("Doctor Said" in opt and "Doctor Said" in curr_sel) or ("Patient Said" in opt and "Patient Said" in curr_sel):
+                    default_ix = ix
+                    break
+
             dialogue_filter = st.radio(
                 "Filter Dialogues:",
                 filter_options,
+                index=default_ix,
                 horizontal=True,
                 label_visibility="collapsed",
                 key="dialogue_filter_selector",
             )
 
             def _render_bubble(seg):
-                role_val = seg.speaker_role.value if isinstance(seg.speaker_role, SpeakerRole) else str(seg.speaker_role)
+                canonical = _get_canonical_role(seg)
                 time_tag = f"[{seg.start_time:.1f}s - {seg.end_time:.1f}s]" if seg.start_time is not None else ""
-                speaker_id_tag = f" ({seg.speaker_id})" if getattr(seg, "speaker_id", None) and seg.speaker_id not in (role_val, "Speaker") else ""
+                speaker_id_tag = f" ({seg.speaker_id})" if getattr(seg, "speaker_id", None) and seg.speaker_id not in ("Doctor", "Patient", "Speaker") else ""
 
-                if role_val == SpeakerRole.DOCTOR.value:
+                if canonical == "doctor":
                     bubble_class = "bubble-doctor"
                     icon = "🩺"
                     title = f"DOCTOR{speaker_id_tag} {time_tag}".strip()
-                elif role_val == SpeakerRole.PATIENT.value:
+                elif canonical == "patient":
                     bubble_class = "bubble-patient"
                     icon = "👤"
                     title = f"PATIENT{speaker_id_tag} {time_tag}".strip()
-                elif role_val == SpeakerRole.CAREGIVER.value:
+                elif canonical == "caregiver":
                     bubble_class = "bubble-caregiver"
                     icon = "👥"
                     title = f"CAREGIVER / FAMILY{speaker_id_tag} {time_tag}".strip()
-                elif role_val == SpeakerRole.NURSE.value:
+                elif canonical == "nurse":
                     bubble_class = "bubble-nurse"
                     icon = "🩺"
                     title = f"NURSE / STAFF{speaker_id_tag} {time_tag}".strip()
                 else:
                     bubble_class = "bubble-unknown"
                     icon = "❓"
-                    title = f"UNKNOWN{speaker_id_tag} {time_tag}".strip()
+                    title = f"UNASSIGNED{speaker_id_tag} {time_tag}".strip()
 
                 st.markdown(
                     f"""

@@ -99,18 +99,22 @@ def analyze_audio_data(
             recommendations=["No audio data captured. Verify microphone permissions and connection."]
         )
 
-    # 1. Peak & RMS Amplitude
-    peak_linear = float(np.max(np.abs(audio)))
-    rms_linear = float(np.sqrt(np.mean(np.square(audio))))
-
-    peak_db = _amplitude_to_db(peak_linear)
-    rms_db = _amplitude_to_db(rms_linear)
-
-    # 2. Digital Clipping (samples at or exceeding 0.985 linear)
+    # 1. Digital Clipping on RAW ADC samples (detecting physical/digital rail saturation)
     clip_thresh = 0.985
     clipped_samples = int(np.sum(np.abs(audio) >= clip_thresh))
     clipping_ratio = float(clipped_samples / total_samples)
     has_clipping = clipping_ratio > 0.001  # > 0.1% clipped
+
+    # 2. DC Offset Removal for acoustic energy analysis (preventing false noise floor)
+    mean_val = float(np.mean(audio))
+    ac_audio = (audio - mean_val) if abs(mean_val) > 1e-4 else audio
+
+    # 3. Peak & RMS Amplitude
+    peak_linear = float(np.max(np.abs(audio)))
+    rms_linear = float(np.sqrt(np.mean(np.square(ac_audio))))
+
+    peak_db = _amplitude_to_db(peak_linear)
+    rms_db = _amplitude_to_db(rms_linear)
 
     # 3. Noise Floor Estimation via windowed percentiles (100ms frames)
     frame_size = max(160, int(sample_rate * 0.1))  # 100ms

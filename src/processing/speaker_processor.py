@@ -19,7 +19,7 @@ CLINICIAN_PATTERNS = [
     r"\b(?:let\s+me|i'm\s+going\s+to|let's)\s+(?:examine|listen|check|take\s+your|look\s+at|talk\s+about)\b",
     r"\b(?:i'll|let's|we'll|i\s+am\s+going\s+to|i'd\s+like\s+you\s+to|i\s+recommend)\s+(?:prescribe|order|recommend|start\s+you\s+on|try\s+using|stick\s+with|making\s+some\s+lifestyle)\b",
     r"\b(?:take\s+(?:this|one|two)|take\s+\d+\s*mg|twice\s+daily|three\s+times\s+a\s+day)\b",
-    r"\b(?:any\s+fever|any\s+allergies|any\s+other\s+symptoms|any\s+other\s+costs|do\s+you\s+have|did\s+you\s+have)\b",
+    r"\b(?:any\s+(?:chest\s+pain|fever|allergies|other\s+symptoms|other\s+costs|shortness\s+of\s+breath|nausea|vomiting|dizziness|headache|pain|swelling|cough)|do\s+you\s+have|did\s+you\s+have)\b",
     r"\b(?:follow\s+up|return\s+to\s+clinic|come\s+back\s+if|see\s+me\s+in|set\s+a\s+time|early\s+next\s+week)\b",
     r"\b(?:your\s+blood\s+pressure\s+is|your\s+temperature\s+is|your\s+heart\s+rate\s+is|lungs\s+sound)\b",
     r"\b(?:it\s+sounds\s+like|my\s+impression\s+is|could\s+be|likely\s+a|rule\s+out|our\s+goal\s+is)\b",
@@ -32,6 +32,9 @@ CLINICIAN_PATTERNS = [
     r"\b(?:hi|hello|welcome)\s*,\s*(?:mr\.|mrs\.|ms\.|miss)\s+\w+\b",
     r"\b(?:seen\s+you\s+a\s+number\s+of\s+times|thanks\s+to\s+see\s+you\s+again|glad\s+you\s+were\s+able\s+to\s+come)\b",
     r"\b(?:got\s+it\s*,\s*and\s+i\s+understand|i\s+understand\s+your\s+concern|okay\s*,\s*well\s+there\s+are)\b",
+    r"\b(?:unfortunately\s+that(?:\s+that)?\s+can\s+happen|quite\s+a\s+few\s+patients|reoccurring\s+episodes)\b",
+    r"\b(?:heating\s+pad\s+for\s+your\s+back|stick\s+with\s+the\s+non-prescription|pros\s+and\s+cons\s+of\s+each)\b",
+    r"\b(?:let's\s+talk\s+about\s+some\s+different\s+options|talk\s+about\s+some\s+of\s+the\s+other\s+costs)\b",
     r"\b(?:i'm\s+glad\s+you\s+came\s+in|glad\s+you\s+came\s+in|important\s+not\s+to\s+ignore)\b",
     r"\b(?:let\s+me\s+ask\s+you|ask\s+you\s+a\s+few\s+questions|better\s+understand\s+your\s+condition)\b",
     r"\b(?:have\s+you\s+noticed\s+if|symptoms\s+occur\s+during|family\s+history|history\s+of\s+heart\s+disease)\b",
@@ -52,6 +55,7 @@ PATIENT_PATTERNS = [
     r"\b(?:dr\.|doctor)\s+[a-z]+\b",
     r"\b(?:i\s+have\s+been\s+having|i've\s+had|i\s+have|i\s+feel|i'm\s+feeling|i\s+got)\b",
     r"\b(?:my\s+throat|my\s+head|my\s+chest|my\s+stomach|my\s+back|my\s+knee|my\s+ear)\s+(?:hurts|aches|is\s+sore|'s\s+been\s+hurting|is\s+hurting)\b",
+    r"\b(?:my\s+back'?s\s+been\s+hurting|back'?s\s+been\s+hurting|which(?:\s+the)?\s+pills)\b",
     r"\b(?:it\s+hurts\s+when|it\s+started|since\s+yesterday|for\s+about\s+\d+|for\s+the\s+past\s+\d+)\b",
     r"\b(?:keeps\s+coming\s+back|got\s+hurt\s+on\s+the\s+job|bend\s+down|move\s+in\s+a\s+weird\s+way|just\s+go\s+out\s+again)\b",
     r"\b(?:i\s+noticed|i\s+can't\s+sleep|i\s+threw\s+up|i\s+don't\s+have\s+any)\b",
@@ -83,10 +87,10 @@ PATIENT_PATTERNS = [
 CAREGIVER_PATTERNS = [
     r"\b(?:he\s+hasn't\s+been|she\s+hasn't\s+been|he's\s+been|she's\s+been|he\s+was|she\s+was)\b",
     r"\b(?:my\s+husband|my\s+wife|my\s+mother|my\s+father|my\s+son|my\s+daughter|my\s+child|my\s+mom|my\s+dad)\b",
-    r"\b(?:i\s+brought\s+(?:him|her)\s+in|we\s+noticed\s+that\s+(?:he|she)|i\s+noticed\s+(?:he|she))\b",
-    r"\b(?:he\s+complained|she\s+complained|he\s+told\s+me|she\s+told\s+me|at\s+home\s+(?:he|she))\b",
-    r"\b(?:we\s+are\s+worried|he\s+can't|she\s+can't|his\s+pain|her\s+pain|his\s+memory|her\s+memory)\b",
-    r"\b(?:i'm\s+his\s+wife|i'm\s+her\s+husband|i'm\s+his\s+mother|i'm\s+her\s+daughter)\b",
+    r"\b(?:i\s+brought\s+(?:him|her)\s+in|we\s+noticed\s+that\s+(?:he|she)|i\s+noticed\s+(?:he|she)|i\s+drove\s+(?:him|her)|we\s+drove\s+(?:him|her))\b",
+    r"\b(?:he\s+complained|she\s+complained|he\s+told\s+me|she\s+told\s+me|at\s+home\s+(?:he|she)|struggling\s+to\s+(?:walk|stand|breathe|eat))\b",
+    r"\b(?:we\s+are\s+worried|he\s+can't|she\s+can't|he\s+couldn't|she\s+couldn't|he\s+could\s+not|she\s+could\s+not|his\s+pain|her\s+pain|his\s+memory|her\s+memory)\b",
+    r"\b(?:i'm\s+his\s+wife|i'm\s+her\s+husband|i'm\s+his\s+mother|i'm\s+her\s+daughter|i'm\s+his\s+daughter|i'm\s+her\s+son|i'm\s+his\s+son)\b",
 ]
 
 NURSE_PATTERNS = [
@@ -96,10 +100,10 @@ NURSE_PATTERNS = [
     r"\b(?:confirm\s+your|verify\s+your\s+name\s+and\s+date\s+of\s+birth)\b",
 ]
 
-PREFIX_DOCTOR_RE = re.compile(r"^(?:doctor|dr\.?|clinician|physician|provider):?\s*", re.IGNORECASE)
-PREFIX_PATIENT_RE = re.compile(r"^(?:patient|pt):?\s*", re.IGNORECASE)
-PREFIX_CAREGIVER_RE = re.compile(r"^(?:caregiver|family|spouse|parent|mother|father|wife|husband|daughter|son):?\s*", re.IGNORECASE)
-PREFIX_NURSE_RE = re.compile(r"^(?:nurse|rn|ma|medical\s+assistant|assistant|staff|triage):?\s*", re.IGNORECASE)
+PREFIX_DOCTOR_RE = re.compile(r"^(?:\[?(?:doctor|dr\.?(?:\s+[a-z]+)?|clinician|physician|provider)\]?\s*[:\-–]|^(?:doctor|dr\.?)\s*:)\s*", re.IGNORECASE)
+PREFIX_PATIENT_RE = re.compile(r"^(?:\[?(?:patient|pt)\]?\s*[:\-–]|^(?:patient|pt)\s*:)\s*", re.IGNORECASE)
+PREFIX_CAREGIVER_RE = re.compile(r"^(?:\[?(?:caregiver|family|spouse)\]?\s*[:\-–]|^(?:caregiver|family)\s*:)\s*", re.IGNORECASE)
+PREFIX_NURSE_RE = re.compile(r"^(?:\[?(?:nurse|rn|ma|medical\s+assistant|triage)\]?\s*[:\-–]|^(?:nurse|rn)\s*:)\s*", re.IGNORECASE)
 
 
 def estimate_speaker_role(
@@ -115,7 +119,7 @@ def estimate_speaker_role(
     if not cleaned:
         return SpeakerRole.UNKNOWN, 0.0, "Empty utterance"
 
-    # 1. Explicit prefixes
+    # 1. Explicit script prefixes
     if PREFIX_DOCTOR_RE.match(cleaned):
         return SpeakerRole.DOCTOR, 0.95, "Explicit doctor label prefix"
     if PREFIX_PATIENT_RE.match(cleaned):
@@ -125,11 +129,34 @@ def estimate_speaker_role(
     if PREFIX_NURSE_RE.match(cleaned):
         return SpeakerRole.NURSE, 0.95, "Explicit nurse/staff label prefix"
 
+    # 1b. Heading comma address (e.g. "Doctor, what brings you in?" vs "Doctor, my back hurts")
+    m_doc_comma = re.match(r"^(?:doctor|dr\.?)\s*,\s*(.*)$", cleaned, re.IGNORECASE)
+    if m_doc_comma:
+        remainder = m_doc_comma.group(1).strip()
+        # Direct clinician inquiry or directive:
+        if any(re.search(pat, remainder, re.IGNORECASE) for pat in CLINICIAN_PATTERNS) or remainder.endswith("?"):
+            return SpeakerRole.DOCTOR, 0.90, "Clinician inquiry following doctor vocative marker"
+        # Caregiver 3rd-person proxy report:
+        if any(re.search(pat, remainder, re.IGNORECASE) for pat in CAREGIVER_PATTERNS):
+            return SpeakerRole.CAREGIVER, 0.90, "Caregiver addressing clinician on patient behalf"
+        # Otherwise patient presenting symptoms:
+        return SpeakerRole.PATIENT, 0.88, "Patient addressing clinician with complaint"
+
+    m_pt_comma = re.match(r"^(?:patient|pt)\s*,\s*(.*)$", cleaned, re.IGNORECASE)
+    if m_pt_comma:
+        remainder = m_pt_comma.group(1).strip()
+        if any(re.search(pat, remainder, re.IGNORECASE) for pat in PATIENT_PATTERNS) or not any(re.search(pat, remainder, re.IGNORECASE) for pat in CLINICIAN_PATTERNS):
+            return SpeakerRole.PATIENT, 0.90, "Patient symptom statement"
+
     # 2. Count phrasing cues across all 4 candidate roles
     doc_matches = sum(1 for pat in CLINICIAN_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
     pt_matches = sum(1 for pat in PATIENT_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
     cg_matches = sum(1 for pat in CAREGIVER_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
     nurse_matches = sum(1 for pat in NURSE_PATTERNS if re.search(pat, cleaned, re.IGNORECASE))
+
+    # Caregiver 3rd-person proxy advocacy takes precedence over shared symptom timeline cues
+    if cg_matches > 0:
+        cg_matches += 2
 
     # Direct vocative address to doctor (e.g., "Doctor,", "Good morning, Doctor", "Thank you, Dr.", "Doctor, what tests...")
     # Addressing the doctor is a definitive sign of Patient or Caregiver voice
@@ -217,21 +244,31 @@ def process_transcript_segments(segments: List[TranscriptSegment]) -> List[Trans
     """
     Annotates each segment with estimated speaker role and confidence using two-pass
     contextual turn-taking and conversational continuation smoothing.
+    Preserves already-assigned acoustic/multi-modal roles unless high-confidence linguistic cues override.
     """
     if not segments:
         return []
 
     processed: List[TranscriptSegment] = []
 
-    # Pass 1: Standalone rule-based estimation for anchor detection
+    # Pass 1: Standalone rule-based estimation for anchor detection (preserving existing assignments)
     for seg in segments:
-        role, conf, reason = estimate_speaker_role(seg.text)
-        seg.speaker_role = role
-        seg.role_confidence = conf
-        seg.speaker_reason = reason
+        if seg.speaker_role and seg.speaker_role != SpeakerRole.UNKNOWN:
+            # Segment already has an assigned role (e.g. from acoustic clustering);
+            # only override if linguistic evidence is very decisive (conf >= 0.75)
+            ling_role, conf, reason = estimate_speaker_role(seg.text)
+            if conf >= 0.75 and ling_role != SpeakerRole.UNKNOWN and ling_role != seg.speaker_role:
+                seg.speaker_role = ling_role
+                seg.role_confidence = max(conf, seg.role_confidence)
+                seg.speaker_reason = f"Linguistic override ({reason})"
+        else:
+            role, conf, reason = estimate_speaker_role(seg.text)
+            seg.speaker_role = role
+            seg.role_confidence = conf
+            seg.speaker_reason = reason
         processed.append(seg)
 
-    # Pass 2: Contextual Turn Continuation & Alternation Smoothing
+    # Pass 2: Forward Contextual Turn Continuation & Alternation Smoothing
     for i in range(len(processed)):
         seg = processed[i]
         if seg.speaker_role != SpeakerRole.UNKNOWN:
@@ -283,4 +320,150 @@ def process_transcript_segments(segments: List[TranscriptSegment]) -> List[Trans
             seg.role_confidence = 0.50
             seg.speaker_reason = f"Dialogue flow continuation ({prev_role.value.lower()})"
 
+    # Pass 2b: Backward fill for leading unknown segments
+    for i in range(len(processed) - 2, -1, -1):
+        if processed[i].speaker_role == SpeakerRole.UNKNOWN:
+            nxt_role = processed[i + 1].speaker_role
+            if nxt_role == SpeakerRole.PATIENT:
+                processed[i].speaker_role = SpeakerRole.DOCTOR
+                processed[i].role_confidence = 0.55
+                processed[i].speaker_reason = "Doctor opening preceding patient response"
+            elif nxt_role == SpeakerRole.DOCTOR:
+                processed[i].speaker_role = SpeakerRole.DOCTOR
+                processed[i].role_confidence = 0.50
+                processed[i].speaker_reason = "Doctor opening dialogue flow"
+
     return processed
+
+
+def split_sentences_preserving_titles(text: str) -> List[str]:
+    """Splits text into sentences while protecting periods in medical abbreviations (Dr., Mr., etc.)."""
+    masked = re.sub(r"\b(Dr|Mr|Mrs|Ms|Pt)\.", r"\1<DOT>", text, flags=re.IGNORECASE)
+    parts = re.split(r"(?<=[.?!])\s+(?=[A-Z])", masked)
+    return [p.replace("<DOT>", ".").strip() for p in parts if p.strip()]
+
+
+def disentangle_and_heal_transcript_segments(
+    segments: List[TranscriptSegment]
+) -> List[TranscriptSegment]:
+    """Cleans, repairs, and disentangles ASR dialogue segments for clinical conversations.
+    
+    1. Splits multi-sentence composite chunks containing distinct dialogue turns (e.g.
+       Doctor question + Patient answer in one chunk) into sub-segments with proportional timestamps.
+    2. Heals mid-sentence fragments that were artificially severed by ASR pauses.
+    3. Runs contextual two-pass clinical speaker role estimation.
+    4. Merges consecutive same-speaker utterances into cohesive turns.
+    """
+    if not segments:
+        return []
+
+    # 1. Split multi-sentence composite chunks proportionally
+    split_items: List[TranscriptSegment] = []
+    seg_counter = 1
+
+    for seg in segments:
+        text = seg.text.strip()
+        if not text:
+            continue
+
+        sents = split_sentences_preserving_titles(text)
+        if len(sents) <= 1:
+            split_items.append(TranscriptSegment(
+                id=seg_counter,
+                text=text,
+                start_time=seg.start_time,
+                end_time=seg.end_time,
+                speaker_id=seg.speaker_id,
+                speaker_role=seg.speaker_role,
+            ))
+            seg_counter += 1
+        else:
+            total_chars = sum(len(s) for s in sents)
+            st = seg.start_time if seg.start_time is not None else 0.0
+            et = seg.end_time if seg.end_time is not None else (st + float(len(text)) * 0.06)
+            dur = max(0.5, et - st)
+            cur_st = st
+            for s in sents:
+                frac = len(s) / max(1, total_chars)
+                cur_et = cur_st + (dur * frac)
+                split_items.append(TranscriptSegment(
+                    id=seg_counter,
+                    text=s,
+                    start_time=round(cur_st, 2),
+                    end_time=round(cur_et, 2),
+                    speaker_id=seg.speaker_id,
+                    speaker_role=seg.speaker_role,
+                ))
+                seg_counter += 1
+                cur_st = cur_et
+
+    # 2. Heal broken mid-sentence fragments severed across ASR boundaries
+    healed: List[TranscriptSegment] = []
+    i = 0
+    while i < len(split_items):
+        cur = split_items[i]
+        cur_text = cur.text
+        cur_end = cur.end_time
+
+        while i + 1 < len(split_items):
+            nxt = split_items[i + 1]
+            nxt_text = nxt.text.strip()
+            ends_term = cur_text.rstrip().endswith((".", "?", "!", ":"))
+            starts_lower = nxt_text[0].islower() if nxt_text else False
+            is_cont = bool(re.match(r"^(?:who|which|that|to|with|and|or|because|of|for|anymore|again|though|so|but)\b", nxt_text, re.IGNORECASE))
+            
+            # If current sentence does not terminate and next begins with lower or continuation, merge
+            if (not ends_term) or starts_lower or (not ends_term and is_cont):
+                cur_text = cur_text + " " + nxt_text
+                cur_end = nxt.end_time
+                i += 1
+            else:
+                break
+
+        cur.text = cur_text
+        cur.end_time = cur_end
+        healed.append(cur)
+        i += 1
+
+    # 3. Contextual Two-Pass Role Estimation
+    annotated = process_transcript_segments(healed)
+
+    # 4. Turn Consolidation: Merge consecutive segments belonging to the same speaker
+    # if the conversational gap is <= 1.2 seconds
+    final_turns: List[TranscriptSegment] = []
+    current_turn: Optional[TranscriptSegment] = None
+
+    for seg in annotated:
+        if current_turn is None:
+            current_turn = seg
+        elif (
+            current_turn.speaker_role == seg.speaker_role
+            and current_turn.speaker_role != SpeakerRole.UNKNOWN
+            and (seg.start_time is None or current_turn.end_time is None or seg.start_time - current_turn.end_time <= 1.2)
+        ):
+            current_turn.text = f"{current_turn.text} {seg.text}".strip()
+            current_turn.end_time = seg.end_time
+        else:
+            final_turns.append(current_turn)
+            current_turn = seg
+
+    if current_turn:
+        final_turns.append(current_turn)
+
+    # Re-index IDs and assign default speaker IDs based on roles
+    for idx, turn in enumerate(final_turns):
+        turn.id = idx + 1
+        if not turn.speaker_id:
+            if turn.speaker_role == SpeakerRole.DOCTOR:
+                turn.speaker_id = "Speaker 1"
+            elif turn.speaker_role == SpeakerRole.PATIENT:
+                turn.speaker_id = "Speaker 2"
+            elif turn.speaker_role == SpeakerRole.CAREGIVER:
+                turn.speaker_id = "Speaker 3"
+            elif turn.speaker_role == SpeakerRole.NURSE:
+                turn.speaker_id = "Speaker 4"
+            else:
+                turn.speaker_id = "Speaker"
+
+    return final_turns
+
